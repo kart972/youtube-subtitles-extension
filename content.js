@@ -198,34 +198,28 @@ class YouTubeCaptionExtension {
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(xmlText, 'text/xml');
-      
-      // Check for XML parsing errors
-      const parserError = doc.querySelector('parsererror');
-      if (parserError) {
-        console.error('❌ XML parsing error:', parserError.textContent);
-        return [];
-      }
-      
       const textElements = doc.querySelectorAll('text');
-      console.log('📝 Text elements found:', textElements.length);
+      const captionsData = [];
       
-      const captions = Array.from(textElements).map((element, index) => {
-        const start = parseFloat(element.getAttribute('start'));
-        const duration = parseFloat(element.getAttribute('dur') || '0');
-        const text = element.textContent.trim();
+      for (const textElement of textElements) {
+        const start = parseFloat(textElement.getAttribute('start'));
+        const duration = parseFloat(textElement.getAttribute('dur') || '0');
+        const text = textElement.textContent.trim();
         
-        // Log first few captions for debugging
-        if (index < 3) {
-          console.log(`Caption ${index}:`, { start, duration, text: text.substring(0, 50) });
+        if (text) {
+          captionsData.push({ start, duration, text });
         }
-        
+      }
+
+      const captions = captionsData.map((caption, index) => {
+        const endTime = (index + 1 < captionsData.length) ? captionsData[index + 1].start : caption.start + caption.duration;
         return {
-          start,
-          duration,
-          text: text.replace(/\n/g, ' ').replace(/\s+/g, ' ')
+          start: caption.start,
+          duration: endTime - caption.start,
+          text: caption.text.replace(/\n/g, ' ').replace(/\s+/g, ' ')
         };
-      }).filter(caption => caption.text.length > 0);
-      
+      });
+
       console.log('✅ Parsed captions:', captions.length);
       return captions;
     } catch (error) {
@@ -233,8 +227,6 @@ class YouTubeCaptionExtension {
       return [];
     }
   }
-
-
 
   renderCaptions(filteredCaptions = null) {
     const container = this.panel.querySelector('.captions-container');
