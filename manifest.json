@@ -1,0 +1,30 @@
+{
+  "manifest_version": 2,
+  "name": "YouTube Caption Search",
+  "version": "1.0",
+  "description": "Search and navigate YouTube video captions with ease",
+  
+  "permissions": [
+    "activeTab",
+    "*://www.youtube.com/*"
+  ],
+  
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/watch*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+  
+  "web_accessible_resources": [
+    "panel.html"
+  ],
+  
+  "icons": {
+    "24": "icon24.png",
+    "48": "icon48.png",
+    "96": "icon96.png"
+  }
+}

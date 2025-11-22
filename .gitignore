@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary files
+*.swp
+*.swo
+*.swn
+*~
+*.tmp
+*.bak
+
+# Output files
+output.json
+
+# Environment
+.env
+.venv
+venv/
+env/
+ENV/
+venv.bak/
+ENV.bak/
+
+# Config files
+*.md
+~READ.md
