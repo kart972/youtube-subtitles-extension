@@ -129,6 +129,14 @@ class YouTubeCaptionExtension {
       <div class="captions-container">
         <div class="loading">Loading captions...</div>
       </div>
+      <div class="resizer top-left"></div>
+      <div class="resizer top-right"></div>
+      <div class="resizer bottom-left"></div>
+      <div class="resizer bottom-right"></div>
+      <div class="resizer top"></div>
+      <div class="resizer bottom"></div>
+      <div class="resizer left"></div>
+      <div class="resizer right"></div>
     `;
 
     document.body.appendChild(this.panel);
@@ -151,6 +159,7 @@ class YouTubeCaptionExtension {
       const isVisible = expendableSettingsContent.style.display === 'block' || expendableSettingsContent.style.display === 'flex';
       expendableSettingsContent.style.display = isVisible ? 'none' : 'flex'; // Use flex for internal elements layout
       expandBtn.textContent = isVisible ? '▼' : '▲';
+      this.adjustCaptionsContainerHeight(); // Directly call adjust height after settings expand/collapse
     });
 
     // Event listener for language selection
@@ -196,6 +205,8 @@ class YouTubeCaptionExtension {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
+
+    this.initResizing(); // Initialize resizing logic
   }
 
   copyToClipboard() {
@@ -240,6 +251,9 @@ class YouTubeCaptionExtension {
   togglePanel() {
     this.panelVisible = !this.panelVisible;
     this.panel.style.display = this.panelVisible ? 'block' : 'none';
+    if (this.panelVisible) { // Adjust height only if panel becomes visible
+      this.adjustCaptionsContainerHeight();
+    }
   }
 
   async loadCaptions(targetLanguageCode = 'en') { // Add targetLanguageCode parameter
@@ -314,6 +328,7 @@ class YouTubeCaptionExtension {
       this.captions = this.parseCaptionXML(subtitleXml);
       this.renderCaptions();
       this.updateWordCount();
+      this.adjustCaptionsContainerHeight(); // Adjust height after captions are loaded and rendered
 
     } catch (error) {
       console.error('❌ Failed to load captions:', error);
@@ -564,6 +579,35 @@ class YouTubeCaptionExtension {
     });
   }
 
+  adjustCaptionsContainerHeight() {
+    if (!this.panel) return;
+
+    const panelHeight = this.panel.offsetHeight;
+    console.log('DEBUG (adjustHeight): panelHeight:', panelHeight); // Added debug log
+
+    const panelHeader = this.panel.querySelector('.panel-header');
+    const expendableSettings = this.panel.querySelector('.expendable-settings');
+    const searchContainer = this.panel.querySelector('.search-container');
+    const captionsContainer = this.panel.querySelector('.captions-container');
+
+    // Calculate height consumed by non-flexing elements
+    const consumedHeight = 
+      (panelHeader ? panelHeader.offsetHeight : 0) +
+      (expendableSettings ? expendableSettings.offsetHeight : 0) +
+      (searchContainer ? searchContainer.offsetHeight : 0);
+    console.log('DEBUG (adjustHeight): consumedHeight:', consumedHeight); // Added debug log
+
+    const availableHeight = panelHeight - consumedHeight;
+    console.log('DEBUG (adjustHeight): availableHeight:', availableHeight); // Added debug log
+
+    if (captionsContainer) {
+      // Ensure a minimum height if necessary
+      captionsContainer.style.height = Math.max(0, availableHeight) + 'px';
+      // If availableHeight is less than min-height, force min-height, but ensure it doesn't overflow parent
+      // This is implicit if availableHeight calculation is correct and min-height is only for content
+    }
+  }
+
   populateLanguageDropdown(captionTracks, selectedLanguageCode) {
     const languageSelect = this.panel.querySelector('#language-select');
     languageSelect.innerHTML = ''; // Clear existing options
@@ -586,6 +630,98 @@ class YouTubeCaptionExtension {
   handleLanguageChange(event) {
     const newLanguageCode = event.target.value;
     this.loadCaptions(newLanguageCode); // Reload captions for the newly selected language
+  }
+
+  initResizing() {
+    const panel = this.panel;
+    const resizers = panel.querySelectorAll('.resizer');
+    let currentResizer;
+
+    const minimumWidth = 250;
+    const minimumHeight = 150;
+
+    let originalWidth = 0;
+    let originalHeight = 0;
+    let originalX = 0;
+    let originalY = 0;
+    let originalMouseX = 0;
+    let originalMouseY = 0;
+
+    const self = this; // Store 'this' reference for use in nested functions
+    function resize(e) {
+      if (currentResizer.classList.contains('bottom-right')) {
+        const newWidth = originalWidth + (e.pageX - originalMouseX);
+        const newHeight = originalHeight + (e.pageY - originalMouseY);
+        if (newWidth > minimumWidth) panel.style.width = newWidth + 'px';
+        if (newHeight > minimumHeight) panel.style.height = newHeight + 'px';
+      } else if (currentResizer.classList.contains('bottom-left')) {
+        const newWidth = originalWidth - (e.pageX - originalMouseX);
+        const newHeight = originalHeight + (e.pageY - originalMouseY);
+        if (newHeight > minimumHeight) panel.style.height = newHeight + 'px';
+        if (newWidth > minimumWidth) {
+          panel.style.left = (originalX + (e.pageX - originalMouseX)) + 'px';
+          panel.style.width = newWidth + 'px';
+        }
+      } else if (currentResizer.classList.contains('top-right')) {
+        const newWidth = originalWidth + (e.pageX - originalMouseX);
+        const newHeight = originalHeight - (e.pageY - originalMouseY);
+        if (newWidth > minimumWidth) panel.style.width = newWidth + 'px';
+        if (newHeight > minimumHeight) {
+          panel.style.top = (originalY + (e.pageY - originalMouseY)) + 'px';
+          panel.style.height = newHeight + 'px';
+        }
+      } else if (currentResizer.classList.contains('top-left')) {
+        const newWidth = originalWidth - (e.pageX - originalMouseX);
+        const newHeight = originalHeight - (e.pageY - originalMouseY);
+        if (newWidth > minimumWidth) {
+          panel.style.left = (originalX + (e.pageX - originalMouseX)) + 'px';
+          panel.style.width = newWidth + 'px';
+        }
+        if (newHeight > minimumHeight) {
+          panel.style.top = (originalY + (e.pageY - originalMouseY)) + 'px';
+          panel.style.height = newHeight + 'px';
+        }
+      } else if (currentResizer.classList.contains('bottom')) {
+        const newHeight = originalHeight + (e.pageY - originalMouseY);
+        if (newHeight > minimumHeight) panel.style.height = newHeight + 'px';
+      } else if (currentResizer.classList.contains('top')) {
+        const newHeight = originalHeight - (e.pageY - originalMouseY);
+        if (newHeight > minimumHeight) {
+          panel.style.top = (originalY + (e.pageY - originalMouseY)) + 'px';
+          panel.style.height = newHeight + 'px';
+        }
+      } else if (currentResizer.classList.contains('left')) {
+        const newWidth = originalWidth - (e.pageX - originalMouseX);
+        if (newWidth > minimumWidth) {
+          panel.style.left = (originalX + (e.pageX - originalMouseX)) + 'px';
+          panel.style.width = newWidth + 'px';
+        }
+      } else if (currentResizer.classList.contains('right')) {
+        const newWidth = originalWidth + (e.pageX - originalMouseX);
+        if (newWidth > minimumWidth) panel.style.width = newWidth + 'px';
+      }
+      self.adjustCaptionsContainerHeight(); // Call adjust height during resize
+    }
+
+    function stopResize() {
+      document.removeEventListener('mousemove', resize);
+      document.removeEventListener('mouseup', stopResize);
+      self.adjustCaptionsContainerHeight(); // Call adjust height after resize is complete
+    }
+    resizers.forEach(resizer => {
+      resizer.addEventListener('mousedown', function(e) {
+        currentResizer = e.target;
+        e.preventDefault();
+        originalWidth = parseFloat(getComputedStyle(panel, null).getPropertyValue('width').replace('px', ''));
+        originalHeight = parseFloat(getComputedStyle(panel, null).getPropertyValue('height').replace('px', ''));
+        originalX = panel.getBoundingClientRect().left;
+        originalY = panel.getBoundingClientRect().top;
+        originalMouseX = e.pageX;
+        originalMouseY = e.pageY;
+        document.addEventListener('mousemove', resize);
+        document.addEventListener('mouseup', stopResize);
+      });
+    });
   }
 
   observeVideoChanges() {
