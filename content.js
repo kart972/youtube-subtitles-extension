@@ -5,6 +5,9 @@ class YouTubeCaptionExtension {
 
   async init() {
     this.captions = [];
+    this.availableCaptionTracks = []; // Initialize array for available caption tracks
+    this.defaultLanguageCode = 'en'; // Default language code
+    this.currentLanguageCode = this.defaultLanguageCode;
     this.panelVisible = false;
     this.panel = null;
     this.player = null;
@@ -102,6 +105,10 @@ class YouTubeCaptionExtension {
               <button class="expand-btn">▼</button>
           </div>
           <div class="expendable-settings-content" style="display: none;">
+              <div class="language-selection">
+                  <label for="language-select">Language:</label>
+                  <select id="language-select"></select>
+              </div>
               <div class="follow-toggle">
                   <label for="follow-toggle-checkbox">Follow</label>
                   <input type="checkbox" id="follow-toggle-checkbox">
@@ -145,6 +152,9 @@ class YouTubeCaptionExtension {
       expendableSettingsContent.style.display = isVisible ? 'none' : 'flex'; // Use flex for internal elements layout
       expandBtn.textContent = isVisible ? '▼' : '▲';
     });
+
+    // Event listener for language selection
+    this.panel.querySelector('#language-select').addEventListener('change', (e) => this.handleLanguageChange(e));
 
 
     // Dragging logic
@@ -232,7 +242,7 @@ class YouTubeCaptionExtension {
     this.panel.style.display = this.panelVisible ? 'block' : 'none';
   }
 
-  async loadCaptions() {
+  async loadCaptions(targetLanguageCode = 'en') { // Add targetLanguageCode parameter
     console.log('🎬 Loading captions...');
     try {
       const videoId = this.getVideoId();
@@ -265,12 +275,33 @@ class YouTubeCaptionExtension {
         return;
       }
 
-      const subtitleTrack = captionTracks.find(track => track.languageCode === 'en');
+      this.availableCaptionTracks = captionTracks; // Store all caption tracks
+
+      let effectiveLanguageCode = targetLanguageCode;
+      let subtitleTrack = captionTracks.find(track => track.languageCode === effectiveLanguageCode);
+
+      // If targetLanguageCode is not found, try current language, then default, then first available
       if (!subtitleTrack) {
-        console.error('❌ No English subtitle track found');
-        this.showError('No English subtitle track found');
+        effectiveLanguageCode = this.currentLanguageCode;
+        subtitleTrack = captionTracks.find(track => track.languageCode === effectiveLanguageCode);
+      }
+      if (!subtitleTrack && this.defaultLanguageCode !== effectiveLanguageCode) { // Avoid double check if default was already target/current
+        effectiveLanguageCode = this.defaultLanguageCode;
+        subtitleTrack = captionTracks.find(track => track.languageCode === effectiveLanguageCode);
+      }
+      if (!subtitleTrack && captionTracks.length > 0) { // Fallback to first available track
+        effectiveLanguageCode = captionTracks[0].languageCode;
+        subtitleTrack = captionTracks[0];
+      }
+
+      if (!subtitleTrack) { // If still no track found, show error
+        console.error(`❌ No suitable subtitle track found.`);
+        this.showError(`No suitable subtitle track found.`);
         return;
       }
+      
+      this.currentLanguageCode = effectiveLanguageCode; // Store the language that was actually loaded
+      this.populateLanguageDropdown(captionTracks, this.currentLanguageCode); // Populate dropdown with the actually loaded language selected
 
       const subtitleUrl = subtitleTrack.baseUrl;
       const subtitleXml = await this.fetchSubtitleXml(subtitleUrl);
@@ -531,6 +562,30 @@ class YouTubeCaptionExtension {
     container.querySelector('.retry-btn').addEventListener('click', () => {
       this.loadCaptions();
     });
+  }
+
+  populateLanguageDropdown(captionTracks, selectedLanguageCode) {
+    const languageSelect = this.panel.querySelector('#language-select');
+    languageSelect.innerHTML = ''; // Clear existing options
+
+    // Map YouTube's language codes to more readable names (if available)
+    const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
+
+    captionTracks.forEach(track => {
+      const option = document.createElement('option');
+      option.value = track.languageCode;
+      // Use name.simpleText if available, otherwise use languageNames or languageCode
+      option.textContent = track.name ? track.name.simpleText : languageNames.of(track.languageCode) || track.languageCode;
+      if (track.languageCode === selectedLanguageCode) {
+        option.selected = true;
+      }
+      languageSelect.appendChild(option);
+    });
+  }
+
+  handleLanguageChange(event) {
+    const newLanguageCode = event.target.value;
+    this.loadCaptions(newLanguageCode); // Reload captions for the newly selected language
   }
 
   observeVideoChanges() {
