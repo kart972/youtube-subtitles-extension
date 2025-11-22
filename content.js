@@ -12,6 +12,17 @@ class YouTubeCaptionExtension {
     await this.waitForPlayer();
     this.createToggleButton();
     this.createPanel();
+
+    this.boundHandleTimeUpdate = this.handleTimeUpdate.bind(this);
+    const followToggle = this.panel.querySelector('#follow-toggle-checkbox');
+    followToggle.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        this.player.addEventListener('timeupdate', this.boundHandleTimeUpdate);
+      } else {
+        this.player.removeEventListener('timeupdate', this.boundHandleTimeUpdate);
+      }
+    });
+
     this.loadCaptions();
     
     // Listen for video changes
