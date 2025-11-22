@@ -1,8 +1,8 @@
 .caption-search-panel {
   position: fixed;
-  top: 50%;
+  top: 50%; /* Fixed top position */
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%); /* Only horizontal centering */
   width: 350px;
   max-height: 80vh;
   background-color: #282828;
@@ -86,12 +86,12 @@
 }
 
 .expendable-settings-content {
-  display: flex; /* Changed from none to flex by JS when expanded */
-  flex-wrap: wrap;
+  display: block; /* Change to block for vertical expansion */
+  /* flex-wrap: wrap; Removed as not needed with display: block */
   padding: 8px 12px;
   background-color: #2a2a2a;
   border-top: 1px solid #444;
-  gap: 8px; /* Consistent gap */
+  /* gap: 8px; Removed as not directly applicable with display: block */
 }
 
 .header-controls {

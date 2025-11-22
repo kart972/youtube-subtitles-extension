@@ -47,6 +47,7 @@ def get_subtitles(video_url):
 
         subtitle_url = None
         for track in caption_tracks:
+            print(f"Languages {track.get("languageCode")}")
             if track.get("languageCode") == "en":
                 subtitle_url = track.get("baseUrl")
                 break
