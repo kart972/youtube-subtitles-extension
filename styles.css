@@ -1,6 +1,6 @@
 .caption-search-panel {
   position: fixed;
-  top: 50%; /* Fixed top position */
+  top: 60px; /* Fixed top position */
   left: 50%;
   transform: translateX(-50%); /* Only horizontal centering */
   width: 350px;
@@ -86,12 +86,42 @@
 }
 
 .expendable-settings-content {
-  display: block; /* Change to block for vertical expansion */
-  /* flex-wrap: wrap; Removed as not needed with display: block */
+  display: flex; /* Changed from none to flex by JS when expanded */
+  flex-wrap: wrap;
   padding: 8px 12px;
   background-color: #2a2a2a;
   border-top: 1px solid #444;
-  /* gap: 8px; Removed as not directly applicable with display: block */
+  gap: 8px; /* Consistent gap */
+}
+
+.language-selection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px; /* Add some space below */
+  width: 100%; /* Take full width */
+}
+
+.language-selection label {
+  color: #eee;
+  font-size: 13px;
+  flex-shrink: 0; /* Prevent label from shrinking */
+}
+
+#language-select {
+  flex-grow: 1; /* Allow select to take available width */
+  padding: 4px 8px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: #3a3a3a;
+  color: #eee;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+#language-select:focus {
+  border-color: #4a9eff;
 }
 
 .header-controls {
