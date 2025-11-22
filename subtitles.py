@@ -12,8 +12,8 @@ def get_subtitles(video_url):
     try:
         response = requests.get(video_url)
         response.raise_for_status()
-        html = response.text
-        match = re.search(r'"INNERTUBE_API_KEY":"([^"]*)"', html)
+        html_content = response.text
+        match = re.search(r'"INNERTUBE_API_KEY":"([^"]*)"', html_content)
         if not match:
             print("Error: Could not find INNERTUBE_API_KEY")
             return
@@ -65,11 +65,25 @@ def get_subtitles(video_url):
 
         # Parse the subtitle XML
         tree = ElementTree.fromstring(subtitle_xml)
+        captions_data = []
         for text_element in tree.iter('text'):
             start_time = float(text_element.get('start'))
             duration = float(text_element.get('dur'))
-            end_time = start_time + duration
             subtitle_text = html.unescape(text_element.text)
+            captions_data.append({
+                'start': start_time,
+                'dur': duration,
+                'text': subtitle_text
+            })
+
+        for i, caption in enumerate(captions_data):
+            start_time = caption['start']
+            if i + 1 < len(captions_data):
+                end_time = captions_data[i+1]['start']
+            else:
+                end_time = start_time + caption['dur']
+            
+            subtitle_text = caption['text']
 
             # Convert to a more readable time format (HH:MM:SS.ms)
             start_h = int(start_time // 3600)

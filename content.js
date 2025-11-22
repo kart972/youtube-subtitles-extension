@@ -4,6 +4,10 @@ class YouTubeCaptionExtension {
   }
 
   async init() {
+    this.captions = [];
+    this.panelVisible = false;
+    this.panel = null;
+    this.player = null;
     // Wait for YouTube player to load
     await this.waitForPlayer();
     this.createToggleButton();
@@ -12,6 +16,33 @@ class YouTubeCaptionExtension {
     
     // Listen for video changes
     this.observeVideoChanges();
+
+    this.boundHandleTimeUpdate = this.handleTimeUpdate.bind(this);
+    const followToggle = this.panel.querySelector('#follow-toggle-checkbox');
+    followToggle.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        this.player.addEventListener('timeupdate', this.boundHandleTimeUpdate);
+      } else {
+        this.player.removeEventListener('timeupdate', this.boundHandleTimeUpdate);
+      }
+    });
+  }
+
+  handleTimeUpdate() {
+    if (!this.captions.length) return;
+    const currentTime = this.player.currentTime;
+    const currentCaption = this.captions.find(caption => currentTime >= caption.start && currentTime <= caption.start + caption.duration);
+
+    if (currentCaption) {
+      const allCaptionItems = this.panel.querySelectorAll('.caption-item');
+      allCaptionItems.forEach(item => item.classList.remove('active'));
+
+      const currentCaptionItem = this.panel.querySelector(`[data-start="${currentCaption.start}"]`);
+      if (currentCaptionItem) {
+        currentCaptionItem.classList.add('active');
+        currentCaptionItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
   }
 
   waitForPlayer() {
@@ -37,6 +68,9 @@ class YouTubeCaptionExtension {
     button.innerHTML = '📝';
     button.title = 'Search Captions';
     button.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: none;
       border: none;
       color: white;
@@ -56,12 +90,22 @@ class YouTubeCaptionExtension {
     
     this.panel.innerHTML = `
       <div class="panel-header">
+        <div class="drag-handle"></div>
         <h3>Caption Search</h3>
+        <div class="header-controls">
+          <div class="follow-toggle">
+            <label for="follow-toggle-checkbox">Follow</label>
+            <input type="checkbox" id="follow-toggle-checkbox">
+          </div>
+          <button class="copy-btn">Copy</button>
+          <button class="copy-with-timeline-btn">Copy with Timeline</button>
+        </div>
         <button class="close-btn">×</button>
       </div>
       <div class="search-container">
         <input type="text" placeholder="Search captions..." class="search-input">
         <div class="search-results-count"></div>
+        <div class="word-count"></div>
       </div>
       <div class="captions-container">
         <div class="loading">Loading captions...</div>
@@ -73,6 +117,88 @@ class YouTubeCaptionExtension {
     // Event listeners
     this.panel.querySelector('.close-btn').addEventListener('click', () => this.togglePanel());
     this.panel.querySelector('.search-input').addEventListener('input', (e) => this.searchCaptions(e.target.value));
+
+    this.panel.querySelector('.copy-btn').addEventListener('click', () => this.copyToClipboard());
+    this.panel.querySelector('.copy-with-timeline-btn').addEventListener('click', () => this.copyToClipboardWithTimeline());
+
+    // Dragging logic
+    const dragHandle = this.panel.querySelector('.drag-handle');
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+
+    dragHandle.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // Prevent text selection during drag
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = this.panel.offsetLeft;
+      startTop = this.panel.offsetTop;
+
+      document.body.style.userSelect = 'none';
+      document.body.style.webkitUserSelect = 'none';
+      document.body.style.mozUserSelect = 'none';
+      document.body.style.msUserSelect = 'none';
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      this.panel.style.left = `${startLeft + dx}px`;
+      this.panel.style.top = `${startTop + dy}px`;
+    };
+
+    const onMouseUp = () => {
+      isDragging = false;
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+      document.body.style.mozUserSelect = '';
+      document.body.style.msUserSelect = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  }
+
+  copyToClipboard() {
+    const text = this.captions.map(caption => caption.text).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      console.log('✅ Captions copied to clipboard');
+    }).catch(err => {
+      console.error('❌ Failed to copy captions:', err);
+    });
+  }
+
+  copyToClipboardWithTimeline() {
+    const text = this.captions.map(caption => {
+      const start = this.formatTime(caption.start);
+      const end = this.formatTime(caption.start + caption.duration);
+      return `[${start} --> ${end}] ${caption.text}`;
+    }).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      console.log('✅ Captions with timeline copied to clipboard');
+    }).catch(err => {
+      console.error('❌ Failed to copy captions with timeline:', err);
+    });
+  }
+
+  handleTimeUpdate() {
+    if (!this.captions.length) return;
+    const currentTime = this.player.currentTime;
+    const currentCaption = this.captions.find(caption => currentTime >= caption.start && currentTime <= caption.start + caption.duration);
+
+    if (currentCaption) {
+      const allCaptionItems = this.panel.querySelectorAll('.caption-item');
+      allCaptionItems.forEach(item => item.classList.remove('active'));
+
+      const currentCaptionItem = this.panel.querySelector(`[data-start="${currentCaption.start}"]`);
+      if (currentCaptionItem) {
+        currentCaptionItem.classList.add('active');
+        currentCaptionItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
   }
 
   togglePanel() {
@@ -130,6 +256,7 @@ class YouTubeCaptionExtension {
 
       this.captions = this.parseCaptionXML(subtitleXml);
       this.renderCaptions();
+      this.updateWordCount();
 
     } catch (error) {
       console.error('❌ Failed to load captions:', error);
@@ -226,6 +353,12 @@ class YouTubeCaptionExtension {
       console.error('❌ Error parsing caption XML:', error);
       return [];
     }
+  }
+
+  updateWordCount() {
+    const wordCount = this.captions.reduce((total, caption) => total + caption.text.split(' ').length, 0);
+    const wordCountEl = this.panel.querySelector('.word-count');
+    wordCountEl.textContent = `Total words: ${wordCount}`;
   }
 
   renderCaptions(filteredCaptions = null) {
