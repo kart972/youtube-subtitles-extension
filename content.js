@@ -16,16 +16,6 @@ class YouTubeCaptionExtension {
     
     // Listen for video changes
     this.observeVideoChanges();
-
-    this.boundHandleTimeUpdate = this.handleTimeUpdate.bind(this);
-    const followToggle = this.panel.querySelector('#follow-toggle-checkbox');
-    followToggle.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        this.player.addEventListener('timeupdate', this.boundHandleTimeUpdate);
-      } else {
-        this.player.removeEventListener('timeupdate', this.boundHandleTimeUpdate);
-      }
-    });
   }
 
   handleTimeUpdate() {
@@ -92,15 +82,26 @@ class YouTubeCaptionExtension {
       <div class="panel-header">
         <div class="drag-handle"></div>
         <h3>Caption Search</h3>
-        <div class="header-controls">
-          <div class="follow-toggle">
-            <label for="follow-toggle-checkbox">Follow</label>
-            <input type="checkbox" id="follow-toggle-checkbox">
-          </div>
-          <button class="copy-btn">Copy</button>
-          <button class="copy-with-timeline-btn">Copy with Timeline</button>
-        </div>
         <button class="close-btn">×</button>
+      </div>
+      <!-- New expendable settings area -->
+      <div class="expendable-settings">
+          <div class="expendable-settings-toggle">
+              <span>Settings</span>
+              <button class="expand-btn">▼</button>
+          </div>
+          <div class="expendable-settings-content" style="display: none;">
+              <div class="follow-toggle">
+                  <label for="follow-toggle-checkbox">Follow</label>
+                  <input type="checkbox" id="follow-toggle-checkbox">
+              </div>
+              <div class="strip-formatting-toggle">
+                  <label for="strip-formatting-checkbox">Strip Formatting</label>
+                  <input type="checkbox" id="strip-formatting-checkbox">
+              </div>
+              <button class="copy-btn">Copy</button>
+              <button class="copy-with-timeline-btn">Copy with Timeline</button>
+          </div>
       </div>
       <div class="search-container">
         <input type="text" placeholder="Search captions..." class="search-input">
@@ -120,6 +121,20 @@ class YouTubeCaptionExtension {
 
     this.panel.querySelector('.copy-btn').addEventListener('click', () => this.copyToClipboard());
     this.panel.querySelector('.copy-with-timeline-btn').addEventListener('click', () => this.copyToClipboardWithTimeline());
+
+    this.panel.querySelector('#strip-formatting-checkbox').addEventListener('change', () => this.renderCaptions());
+
+    // Event listener for expendable settings
+    const expendableSettingsToggle = this.panel.querySelector('.expendable-settings-toggle');
+    const expendableSettingsContent = this.panel.querySelector('.expendable-settings-content');
+    const expandBtn = this.panel.querySelector('.expand-btn');
+
+    expendableSettingsToggle.addEventListener('click', () => {
+      const isVisible = expendableSettingsContent.style.display === 'block' || expendableSettingsContent.style.display === 'flex';
+      expendableSettingsContent.style.display = isVisible ? 'none' : 'flex'; // Use flex for internal elements layout
+      expandBtn.textContent = isVisible ? '▼' : '▲';
+    });
+
 
     // Dragging logic
     const dragHandle = this.panel.querySelector('.drag-handle');
@@ -329,12 +344,15 @@ class YouTubeCaptionExtension {
       const captionsData = [];
       
       for (const textElement of textElements) {
+        const textContent = textElement.textContent.trim();
+        if (textContent.includes('--==// AI DIRECTIVE BLOCK: START //==--')) {
+          break; // Stop parsing when the marker is found
+        }
         const start = parseFloat(textElement.getAttribute('start'));
         const duration = parseFloat(textElement.getAttribute('dur') || '0');
-        const text = textElement.textContent.trim();
         
-        if (text) {
-          captionsData.push({ start, duration, text });
+        if (textContent) {
+          captionsData.push({ start, duration, text: textContent });
         }
       }
 
@@ -364,18 +382,21 @@ class YouTubeCaptionExtension {
   renderCaptions(filteredCaptions = null) {
     const container = this.panel.querySelector('.captions-container');
     const captions = filteredCaptions || this.captions;
-    
+    const stripFormatting = this.panel.querySelector('#strip-formatting-checkbox').checked;
+
     if (captions.length === 0) {
       container.innerHTML = '<div class="no-captions">No captions available</div>';
       return;
     }
 
-    container.innerHTML = captions.map((caption, index) => `
+    container.innerHTML = captions.map((caption, index) => {
+      const text = stripFormatting ? caption.text.replace(/<[^>]+>/g, '') : caption.text;
+      return `
       <div class="caption-item" data-start="${caption.start}">
         <div class="caption-time">${this.formatTime(caption.start)}</div>
-        <div class="caption-text">${caption.text}</div>
+        <div class="caption-text">${text}</div>
       </div>
-    `).join('');
+    `}).join('');
 
     // Add click listeners to caption items
     container.querySelectorAll('.caption-item').forEach(item => {
@@ -383,6 +404,33 @@ class YouTubeCaptionExtension {
         const startTime = parseFloat(item.dataset.start);
         this.seekToTime(startTime);
       });
+    });
+  }
+
+  copyToClipboard() {
+    const stripFormatting = this.panel.querySelector('#strip-formatting-checkbox').checked;
+    const text = this.captions.map(caption => {
+      return stripFormatting ? caption.text.replace(/<[^>]+>/g, '') : caption.text;
+    }).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      console.log('✅ Captions copied to clipboard');
+    }).catch(err => {
+      console.error('❌ Failed to copy captions:', err);
+    });
+  }
+
+  copyToClipboardWithTimeline() {
+    const stripFormatting = this.panel.querySelector('#strip-formatting-checkbox').checked;
+    const text = this.captions.map(caption => {
+      const start = this.formatTime(caption.start);
+      const end = this.formatTime(caption.start + caption.duration);
+      const captionText = stripFormatting ? caption.text.replace(/<[^>]+>/g, '') : caption.text;
+      return `[${start} --> ${end}] ${captionText}`;
+    }).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      console.log('✅ Captions with timeline copied to clipboard');
+    }).catch(err => {
+      console.error('❌ Failed to copy captions with timeline:', err);
     });
   }
 

@@ -67,9 +67,15 @@ def get_subtitles(video_url):
         tree = ElementTree.fromstring(subtitle_xml)
         captions_data = []
         for text_element in tree.iter('text'):
+            subtitle_text = html.unescape(text_element.text)
+            # _subtitle_text = 
+            
+            if '--==// AI DIRECTIVE BLOCK: START //==--' in subtitle_text:
+                break
+
+            subtitle_text = html.unescape(text_element.text)
             start_time = float(text_element.get('start'))
             duration = float(text_element.get('dur'))
-            subtitle_text = html.unescape(text_element.text)
             captions_data.append({
                 'start': start_time,
                 'dur': duration,

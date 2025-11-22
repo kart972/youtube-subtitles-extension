@@ -31,9 +31,8 @@
   top: 0;
   left: 0;
   bottom: 0;
-  right: 40px; /* Leave space for the close button */
-  cursor: grab;
-  z-index: 1; /* Ensure it's above other header content but below close button */
+  right: 0;
+  z-index: 1;
 }
 
 .panel-header h3 {
@@ -43,6 +42,66 @@
   flex-grow: 1;
   z-index: 2; /* Ensure text is above drag handle */
   position: relative; /* To make z-index effective */
+  user-select: none; /* Prevent text selection */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.expendable-settings {
+  background-color: #333;
+  border-bottom: 1px solid #444;
+}
+
+.expendable-settings-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #eee;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.expendable-settings-toggle:hover {
+  background-color: #444;
+}
+
+.expendable-settings-toggle span {
+  flex-grow: 1;
+}
+
+.expand-btn {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.expand-btn:hover {
+  color: #fff;
+}
+
+.expendable-settings-content {
+  display: flex; /* Changed from none to flex by JS when expanded */
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background-color: #2a2a2a;
+  border-top: 1px solid #444;
+  gap: 8px; /* Consistent gap */
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  z-index: 2;
+  position: relative;
+  flex-wrap: wrap; /* Allow items to wrap to the next line */
+  gap: 8px; /* Add some gap between items, default */
 }
 
 .close-btn {
@@ -87,10 +146,47 @@
   color: #888;
 }
 
-.search-results-count {
-  margin-top: 8px;
+
+
+.follow-toggle {
+  display: flex;
+  align-items: center;
+  margin-right: 12px;
+}
+
+.strip-formatting-toggle {
+  display: flex;
+  align-items: center;
+  margin-right: 12px;
+}
+
+.follow-toggle label, .strip-formatting-toggle label {
+  font-size: 13px;
+  /* margin-right: 6px; -- Removed as gap handles spacing */
+  color: #aaa;
+}
+
+.copy-btn, .copy-with-timeline-btn {
+  background: #444;
+  border: none;
+  color: #eee;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  /* margin-left: 8px; -- Removed as gap handles spacing */
+}
+
+.word-count {
   font-size: 12px;
   color: #aaa;
+  margin-top: 8px;
+}
+
+.search-results-count {
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 8px;
 }
 
 .captions-container {
@@ -138,11 +234,15 @@
   border-radius: 2px;
 }
 
-.loading, .no-captions, .error {
-  padding: 20px;
+.caption-item.active {
+  background-color: #4a9eff;
+  color: #fff;
+}
+
+.no-captions, .loading, .error {
   text-align: center;
-  color: #888;
-  font-size: 14px;
+  padding: 20px;
+  color: #aaa;
 }
 
 .error {
@@ -181,4 +281,30 @@
     width: auto;
     top: 60px;
   }
+
+  /* Adjustments for header elements */
+  .panel-header h3 {
+    font-size: 14px; /* Slightly smaller title */
+  }
+
+  .close-btn {
+    font-size: 18px; /* Slightly smaller close button */
+    padding: 2px; /* Reduce padding */
+  }
+
+  .follow-toggle label,
+  .strip-formatting-toggle label {
+    font-size: 11px; /* Smaller labels */
+    /* margin-right: 4px; -- Removed as gap handles spacing */
+  }
+
+  .copy-btn,
+  .copy-with-timeline-btn {
+    font-size: 10px; /* Smaller button text */
+    padding: 4px 8px; /* Reduce padding */
+    /* margin-left: 4px; -- Removed as gap handles spacing */
+  }
+
+
 }
+
