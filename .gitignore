@@ -15,6 +15,12 @@ __pycache__/
 # Output files
 output.json
 
+# Developing files
+node_modules
+web-ext-artifacts
+.amo-upload-uuid
+
+
 # Environment
 .env
 .venv

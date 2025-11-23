@@ -68,20 +68,9 @@ class YouTubeCaptionExtension {
     if (!controls) return;
 
     const button = document.createElement('button');
-    button.className = 'ytp-button caption-search-btn';
+    button.className = 'ytp-button caption-search-btn caption-search-icon-button';
     button.innerHTML = '📝';
     button.title = 'Search Captions';
-    button.style.cssText = `
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: none;
-      border: none;
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
-      padding: 8px;
-    `;
     
     button.addEventListener('click', () => this.togglePanel());
     controls.insertBefore(button, controls.firstChild);

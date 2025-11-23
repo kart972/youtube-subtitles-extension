@@ -2,17 +2,19 @@ html, body {
   box-sizing: border-box;
 }
 
-*, *::before, *::after {
+ .caption-search-panel::after {
   box-sizing: inherit;
 }
 
 .caption-search-panel {
+  box-sizing: inherit;
   position: fixed;
   top: 60px; /* Fixed top position */
   left: calc(50% - 175px); /* Initial horizontal position (350px / 2) */
   /* transform: translateX(-50%); Removed to allow direct left manipulation */
   width: 350px;
   max-height: 80vh;
+  min-height: 200px;
   background-color: #282828;
   border: 1px solid #444;
   border-radius: 8px;
@@ -294,8 +296,9 @@ html, body {
 }
 
 .captions-container {
-  flex: none; /* Disable flex sizing for this item */
-  overflow-y: auto;
+  flex: none !important; /* Disable flex sizing for this item */
+  overflow-y: auto !important;
+  box-sizing: inherit !important;
   padding: 8px 0;
   min-height: 0; /* Important for scrollable flex items */
   /* height will be controlled by JavaScript */
@@ -412,5 +415,17 @@ html, body {
   }
 
 
+}
+
+.caption-search-icon-button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: none !important;
+  border: none !important;
+  color: white !important;
+  font-size: 16px !important;
+  cursor: pointer !important;
+  padding: 8px !important;
 }
 

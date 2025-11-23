@@ -1,0 +1,14 @@
+{
+  "name": "youtube_subtitles",
+  "version": "1.0.0",
+  "description": "My Firefox extension",
+  "main": "index.js",
+  "scripts": {
+    "start:firefox": "web-ext run --source-dir ."
+  },
+  "devDependencies": {
+    "web-ext": "^9.2.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
