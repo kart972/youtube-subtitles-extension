@@ -106,9 +106,9 @@ class YouTubeCaptionExtension {
                   <label for="language-select">Language:</label>
                   <select id="language-select"></select>
               </div>
-              <div class="follow-toggle">
-                  <label for="follow-toggle-checkbox">Follow</label>
-                  <input type="checkbox" id="follow-toggle-checkbox">
+              <div class="follow-toggle-settings">
+                  <label for="follow-toggle-checkbox-settings">Follow</label>
+                  <input type="checkbox" id="follow-toggle-checkbox-settings">
               </div>
               <div class="strip-formatting-toggle">
                   <label for="strip-formatting-checkbox">Strip Formatting</label>
@@ -134,7 +134,15 @@ class YouTubeCaptionExtension {
           </div>
       </div>
       <div class="search-container">
-        <input type="text" placeholder="Search captions..." class="search-input">
+        <!-- Single-line layout: input fills remaining space, follow toggle to the right -->
+      <div class="search-row" style="display:flex;align-items:center;gap:8px;">
+        <input type="text" placeholder="Search captions..." class="search-input" style="flex:1;min-width:0;padding:6px 8px;">
+        <div class="follow-toggle" style="flex:0;display:flex;align-items:center;gap:6px;">
+        <label for="follow-toggle-checkbox" style="margin:0;">Follow</label>
+        <input type="checkbox" id="follow-toggle-checkbox">
+        </div>
+      </div>
+        
         <div class="search-results-count"></div>
         <div class="word-count"></div>
       </div>
@@ -150,6 +158,19 @@ class YouTubeCaptionExtension {
       <div class="resizer left"></div>
       <div class="resizer right"></div>
     `;
+
+    // Apply saved position and size
+    if (this.panelMode === 'floating') {
+      const savedTop = localStorage.getItem('captionSearchPanelTop');
+      const savedLeft = localStorage.getItem('captionSearchPanelLeft');
+      const savedWidth = localStorage.getItem('captionSearchPanelWidth');
+      const savedHeight = localStorage.getItem('captionSearchPanelHeight');
+
+      if (savedTop) this.panel.style.top = savedTop;
+      if (savedLeft) this.panel.style.left = savedLeft;
+      if (savedWidth) this.panel.style.width = savedWidth;
+      if (savedHeight) this.panel.style.height = savedHeight;
+    }
 
     // Set Ui selector values based on saved settings
     this.setUiSelectorValue('#panel-placement-select', this.panelMode);
@@ -267,11 +288,23 @@ class YouTubeCaptionExtension {
       this.panel.parentNode.removeChild(this.panel);
     }
 
-    // Append to correct parent based on mode
+    // Append to correct parent and apply styles based on mode
     if (this.panelMode === 'floating') {
       document.body.appendChild(this.panel);
       this.panel.classList.add('caption-search-panel-floating');
       this.panel.classList.remove('caption-search-panel-below-video');
+
+      // Apply saved position and size
+      const savedTop = localStorage.getItem('captionSearchPanelTop');
+      const savedLeft = localStorage.getItem('captionSearchPanelLeft');
+      const savedWidth = localStorage.getItem('captionSearchPanelWidth');
+      const savedHeight = localStorage.getItem('captionSearchPanelHeight');
+
+      this.panel.style.top = savedTop || '60px';
+      this.panel.style.left = savedLeft || 'calc(50% - 175px)';
+      this.panel.style.width = savedWidth || '350px';
+      this.panel.style.height = savedHeight || ''; // Default height can be auto
+
       this.initDragging(); // Re-initialize or enable if needed
       this.initResizing(); // Re-initialize or enable if needed
     } else { // 'below-video'
@@ -280,13 +313,20 @@ class YouTubeCaptionExtension {
         targetElement.appendChild(this.panel);
         this.panel.classList.add('caption-search-panel-below-video');
         this.panel.classList.remove('caption-search-panel-floating');
+        
+        // Remove inline styles so CSS can take over
+        this.panel.style.top = '';
+        this.panel.style.left = '';
+        this.panel.style.width = '';
+        this.panel.style.height = '';
+
         this.removeDragging();
         this.removeResizing();
       } else {
         document.body.appendChild(this.panel);
         this.panelMode = 'floating'; // Revert to floating if target not found
         localStorage.setItem('captionSearchPanelMode', this.panelMode);
-        console.warn('Target element #below not found, reverting to floating mode.');
+        console.warn('Target element #player not found, reverting to floating mode.');
         this.panel.classList.add('caption-search-panel-floating');
         this.panel.classList.remove('caption-search-panel-below-video');
         this.initDragging();
@@ -354,6 +394,12 @@ class YouTubeCaptionExtension {
       document.body.style.msUserSelect = '';
       document.removeEventListener('mousemove', this.boundOnMouseMove);
       document.removeEventListener('mouseup', this.boundOnMouseUp);
+
+      // Save position
+      if (this.panelMode === 'floating') {
+        localStorage.setItem('captionSearchPanelTop', this.panel.style.top);
+        localStorage.setItem('captionSearchPanelLeft', this.panel.style.left);
+      }
     };
 
     // Store references to the bound functions to remove them later
@@ -904,6 +950,12 @@ class YouTubeCaptionExtension {
       document.removeEventListener('mousemove', this.boundResize);
       document.removeEventListener('mouseup', this.boundStopResize);
       this.adjustCaptionsContainerHeight(); // Call adjust height after resize is complete
+
+      // Save size
+      if (this.panelMode === 'floating') {
+        localStorage.setItem('captionSearchPanelWidth', this.panel.style.width);
+        localStorage.setItem('captionSearchPanelHeight', this.panel.style.height);
+      }
     }.bind(this); // Bind 'this'
 
     resizers.forEach(resizer => {
