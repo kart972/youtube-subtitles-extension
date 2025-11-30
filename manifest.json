@@ -3,6 +3,7 @@
   "name": "YouTube Caption Search",
   "version": "0.3",
   "description": "Search and navigate YouTube video captions with ease",
+  "license": "MIT",
   
   "permissions": [
     "activeTab",
