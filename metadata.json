@@ -1,5 +1,5 @@
 {
-  "version": { "license": "MPL-2.0" },
+  "version": { "license": "MIT" },
   "categories": { "firefox": ["productivity", "accessibility"] },
   "summary": {
     "en-US": "Automatically fetches and displays YouTube subtitles for easier viewing",
