@@ -32,4 +32,4 @@ ENV.bak/
 
 # Config files	
 *.md
-!READ.md
+!README.md
