@@ -123,6 +123,10 @@ class YouTubeCaptionExtension {
                       <option value="below-video">Below Video</option>
                   </select>
               </div>
+              <div class="transparency-slider">
+                  <label for="transparency-slider">Transparency:</label>
+                  <input type="range" id="transparency-slider" min="0.1" max="1" step="0.1" value="0.8">
+              </div>
           </div>
       </div>
       <div class="search-container">
@@ -145,6 +149,9 @@ class YouTubeCaptionExtension {
 
     // Set Ui selector values based on saved settings
     this.setUiSelectorValue('#panel-placement-select', this.panelMode);
+    const savedTransparency = localStorage.getItem('captionSearchPanelTransparency') || '0.8';
+    this.panel.querySelector('#transparency-slider').value = savedTransparency;
+    this.applyTransparency(savedTransparency);
 
     // Event listeners
     this.panel.querySelector('.close-btn').addEventListener('click', () => this.togglePanel());
@@ -185,6 +192,14 @@ class YouTubeCaptionExtension {
         this.updatePanelPlacement();
     });
 
+    // Event listener for transparency slider
+    const transparencySlider = this.panel.querySelector('#transparency-slider');
+    transparencySlider.addEventListener('input', (e) => {
+      const transparency = e.target.value;
+      localStorage.setItem('captionSearchPanelTransparency', transparency);
+      this.applyTransparency(transparency);
+    });
+
     // Fix buttons overlapping with drag handle
     
 
@@ -205,6 +220,19 @@ class YouTubeCaptionExtension {
     if (placementSelect) {
       const hasOption = Array.from(placementSelect.options).some(o => o.value === value);
       placementSelect.value = hasOption ? value : 'floating';
+    }
+  }
+
+  applyTransparency(transparency) {
+    if (this.panel) {
+      this.panel.style.setProperty('--main-bg', `rgba(40, 40, 40, ${transparency})`);
+      this.panel.style.setProperty('--border-color', `rgba(68, 68, 68, ${transparency - 0.3})`);
+      this.panel.style.setProperty('--header-bg', `rgba(51, 51, 51, ${transparency})`);
+      this.panel.style.setProperty('--settings-bg', `rgba(51, 51, 51, ${transparency})`);
+      this.panel.style.setProperty('--settings-content-bg', `rgba(42, 42, 42, ${transparency})`);
+      this.panel.style.setProperty('--search-input-bg', `rgba(42, 42, 42, ${transparency})`);
+      this.panel.style.setProperty('--caption-item-bg', `rgba(42, 42, 42, ${transparency})`);
+      this.panel.style.setProperty('--search-container-bg', transparency < 1 ? 'transparent' : '#282828');
     }
   }
 
