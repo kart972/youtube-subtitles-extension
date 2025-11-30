@@ -30,6 +30,6 @@ ENV/
 venv.bak/
 ENV.bak/
 
-# Config files
+# Config files	
 *.md
-~READ.md
+!READ.md
