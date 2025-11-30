@@ -127,6 +127,10 @@ class YouTubeCaptionExtension {
                   <label for="transparency-slider">Transparency:</label>
                   <input type="range" id="transparency-slider" min="0.1" max="1" step="0.1" value="0.8">
               </div>
+              <div class="caption-size-slider">
+                  <label for="caption-size-slider">Caption Size:</label>
+                  <input type="range" id="caption-size-slider" min="10" max="30" step="1" value="13">
+              </div>
           </div>
       </div>
       <div class="search-container">
@@ -152,6 +156,10 @@ class YouTubeCaptionExtension {
     const savedTransparency = localStorage.getItem('captionSearchPanelTransparency') || '0.8';
     this.panel.querySelector('#transparency-slider').value = savedTransparency;
     this.applyTransparency(savedTransparency);
+
+    const savedCaptionSize = localStorage.getItem('captionSearchPanelSize') || '13';
+    this.panel.querySelector('#caption-size-slider').value = savedCaptionSize;
+    this.applyCaptionSize(savedCaptionSize);
 
     // Event listeners
     this.panel.querySelector('.close-btn').addEventListener('click', () => this.togglePanel());
@@ -200,6 +208,14 @@ class YouTubeCaptionExtension {
       this.applyTransparency(transparency);
     });
 
+    // Event listener for caption size slider
+    const captionSizeSlider = this.panel.querySelector('#caption-size-slider');
+    captionSizeSlider.addEventListener('input', (e) => {
+      const size = e.target.value;
+      localStorage.setItem('captionSearchPanelSize', size);
+      this.applyCaptionSize(size);
+    });
+
     // Fix buttons overlapping with drag handle
     
 
@@ -233,6 +249,12 @@ class YouTubeCaptionExtension {
       this.panel.style.setProperty('--search-input-bg', `rgba(42, 42, 42, ${transparency})`);
       this.panel.style.setProperty('--caption-item-bg', `rgba(42, 42, 42, ${transparency})`);
       this.panel.style.setProperty('--search-container-bg', transparency < 1 ? 'transparent' : '#282828');
+    }
+  }
+
+  applyCaptionSize(size) {
+    if (this.panel) {
+      this.panel.style.setProperty('--caption-font-size', `${size}px`);
     }
   }
 
