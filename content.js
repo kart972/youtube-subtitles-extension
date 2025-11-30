@@ -11,10 +11,12 @@ class YouTubeCaptionExtension {
     this.panelVisible = false;
     this.panel = null;
     this.player = null;
+    this.panelMode = localStorage.getItem('captionSearchPanelMode') || 'floating'; // Initialize panel mode
     // Wait for YouTube player to load
     await this.waitForPlayer();
     this.createToggleButton();
     this.createPanel();
+    this.updatePanelPlacement(); // Set initial panel placement
 
     this.boundHandleTimeUpdate = this.handleTimeUpdate.bind(this);
     const followToggle = this.panel.querySelector('#follow-toggle-checkbox');
@@ -44,7 +46,16 @@ class YouTubeCaptionExtension {
       const currentCaptionItem = this.panel.querySelector(`[data-start="${currentCaption.start}"]`);
       if (currentCaptionItem) {
         currentCaptionItem.classList.add('active');
-        currentCaptionItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Scroll only the captions container (won't move page focus)
+        const captionsContainer = this.panel.querySelector('.captions-container');
+        if (captionsContainer) {
+          const itemRect = currentCaptionItem.getBoundingClientRect();
+          const containerRect = captionsContainer.getBoundingClientRect();
+          const itemOffsetTop = itemRect.top - containerRect.top + captionsContainer.scrollTop;
+          const targetScrollTop = itemOffsetTop - (captionsContainer.clientHeight / 2) + (currentCaptionItem.clientHeight / 2);
+          captionsContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+        }
       }
     }
   }
@@ -79,21 +90,18 @@ class YouTubeCaptionExtension {
   createPanel() {
     this.panel = document.createElement('div');
     this.panel.className = 'caption-search-panel';
-    this.panel.style.display = 'none';
-    
+    // this.panel.style.display = 'none'; // Will be managed by togglePanel
+
     this.panel.innerHTML = `
       <div class="panel-header">
-        <div class="drag-handle"></div>
-        <h3>Caption Search</h3>
+        <h3 class="drag-handle" title="Drag to move panel">Caption Search</h3>
+        <button class="expand-btn">▼</button>
         <button class="close-btn">×</button>
       </div>
       <!-- New expendable settings area -->
-      <div class="expendable-settings">
-          <div class="expendable-settings-toggle">
-              <span>Settings</span>
-              <button class="expand-btn">▼</button>
-          </div>
+      <div class="expendable-settings"> 
           <div class="expendable-settings-content" style="display: none;">
+              <h2>Settings</h2>
               <div class="language-selection">
                   <label for="language-select">Language:</label>
                   <select id="language-select"></select>
@@ -108,6 +116,13 @@ class YouTubeCaptionExtension {
               </div>
               <button class="copy-btn">Copy</button>
               <button class="copy-with-timeline-btn">Copy with Timeline</button>
+              <div class="panel-placement-selection">
+                  <label for="panel-placement-select">Placement:</label>
+                  <select id="panel-placement-select">
+                      <option value="floating">Floating</option>
+                      <option value="below-video">Below Video</option>
+                  </select>
+              </div>
           </div>
       </div>
       <div class="search-container">
@@ -128,7 +143,8 @@ class YouTubeCaptionExtension {
       <div class="resizer right"></div>
     `;
 
-    document.body.appendChild(this.panel);
+    // Set Ui selector values based on saved settings
+    this.setUiSelectorValue('#panel-placement-select', this.panelMode);
 
     // Event listeners
     this.panel.querySelector('.close-btn').addEventListener('click', () => this.togglePanel());
@@ -140,28 +156,123 @@ class YouTubeCaptionExtension {
     this.panel.querySelector('#strip-formatting-checkbox').addEventListener('change', () => this.renderCaptions());
 
     // Event listener for expendable settings
-    const expendableSettingsToggle = this.panel.querySelector('.expendable-settings-toggle');
     const expendableSettingsContent = this.panel.querySelector('.expendable-settings-content');
-    const expandBtn = this.panel.querySelector('.expand-btn');
-
-    expendableSettingsToggle.addEventListener('click', () => {
+    this.panel.querySelector('.expand-btn').addEventListener('click', () => {
+      const expandBtn = this.panel.querySelector('.expand-btn');
       const isVisible = expendableSettingsContent.style.display === 'block' || expendableSettingsContent.style.display === 'flex';
       expendableSettingsContent.style.display = isVisible ? 'none' : 'flex'; // Use flex for internal elements layout
       expandBtn.textContent = isVisible ? '▼' : '▲';
       this.adjustCaptionsContainerHeight(); // Directly call adjust height after settings expand/collapse
     });
 
+    // const expendableSettingsToggle = this.panel.querySelector('.expendable-settings-toggle');
+    // const expendableSettingsContent = this.panel.querySelector('.expendable-settings-content');
+    // const expandBtn = this.panel.querySelector('.expand-btn');
+
+    // expendableSettingsToggle.addEventListener('click', () => {
+    //   const isVisible = expendableSettingsContent.style.display === 'block' || expendableSettingsContent.style.display === 'flex';
+    //   expendableSettingsContent.style.display = isVisible ? 'none' : 'flex'; // Use flex for internal elements layout
+    //   expandBtn.textContent = isVisible ? '▼' : '▲';
+    //   this.adjustCaptionsContainerHeight(); // Directly call adjust height after settings expand/collapse
+    // });
+
     // Event listener for language selection
     this.panel.querySelector('#language-select').addEventListener('change', (e) => this.handleLanguageChange(e));
 
+    // Event listener for panel placement
+    this.panel.querySelector('#panel-placement-select').addEventListener('change', (e) => {
+        this.panelMode = e.target.value;
+        this.updatePanelPlacement();
+    });
 
-    // Dragging logic
+    // Fix buttons overlapping with drag handle
+    
+
+    // ensure the captions container scrolls internally (prevents page scroll)
+    const captionsContainer = this.panel.querySelector('.captions-container');
+    if (captionsContainer) {
+      captionsContainer.style.overflow = 'auto';
+      captionsContainer.style.willChange = 'scroll';
+    }
+
+    // this.updatePanelPlacement();
+    this.initDragging(); // Initialize dragging logic
+    this.initResizing(); // Initialize resizing logic
+  }
+
+  setUiSelectorValue(selector, value) {
+    const placementSelect = this.panel.querySelector(selector);
+    if (placementSelect) {
+      const hasOption = Array.from(placementSelect.options).some(o => o.value === value);
+      placementSelect.value = hasOption ? value : 'floating';
+    }
+  }
+
+
+  updatePanelPlacement() {
+    localStorage.setItem('captionSearchPanelMode', this.panelMode);
+
+    // Remove panel from current parent if it exists
+    if (this.panel && this.panel.parentNode) {
+      this.panel.parentNode.removeChild(this.panel);
+    }
+
+    // Append to correct parent based on mode
+    if (this.panelMode === 'floating') {
+      document.body.appendChild(this.panel);
+      this.panel.classList.add('caption-search-panel-floating');
+      this.panel.classList.remove('caption-search-panel-below-video');
+      this.initDragging(); // Re-initialize or enable if needed
+      this.initResizing(); // Re-initialize or enable if needed
+    } else { // 'below-video'
+      const targetElement = document.querySelector('#player'); // Common container below the video
+      if (targetElement) {
+        targetElement.appendChild(this.panel);
+        this.panel.classList.add('caption-search-panel-below-video');
+        this.panel.classList.remove('caption-search-panel-floating');
+        this.removeDragging();
+        this.removeResizing();
+      } else {
+        document.body.appendChild(this.panel);
+        this.panelMode = 'floating'; // Revert to floating if target not found
+        localStorage.setItem('captionSearchPanelMode', this.panelMode);
+        console.warn('Target element #below not found, reverting to floating mode.');
+        this.panel.classList.add('caption-search-panel-floating');
+        this.panel.classList.remove('caption-search-panel-below-video');
+        this.initDragging();
+        this.initResizing();
+      }
+    }
+    // Set panel visibility based on this.panelVisible
+    this.panel.style.display = this.panelVisible ? 'block' : 'none';
+    requestAnimationFrame(() => this.adjustCaptionsContainerHeight());
+
+  }
+
+  initDragging() {
     const dragHandle = this.panel.querySelector('.drag-handle');
+    if (!dragHandle) return; // Ensure drag handle exists
+    
+    // Remove existing listeners to prevent duplicates
+    this.removeDragging(); 
+
+    if (this.panelMode !== 'floating') return; // Only drag in floating mode
+
     let isDragging = false;
     let startX, startY, startLeft, startTop;
 
-    dragHandle.addEventListener('mousedown', (e) => {
+    const onMouseDown = (e) => {
+      // Don't start drag when clicking interactive elements
+      if (e.target.closest('button, input, select, label, a')) {
+        return;
+      }
+
       e.preventDefault(); // Prevent text selection during drag
+
+      // Ensure cursor doesn't switch to 'grabbing' / 'move'
+      document.body.style.cursor = 'default';
+      if (dragHandle) dragHandle.style.cursor = 'default';
+
       isDragging = true;
       startX = e.clientX;
       startY = e.clientY;
@@ -173,9 +284,9 @@ class YouTubeCaptionExtension {
       document.body.style.mozUserSelect = 'none';
       document.body.style.msUserSelect = 'none';
 
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    });
+      document.addEventListener('mousemove', this.boundOnMouseMove);
+      document.addEventListener('mouseup', this.boundOnMouseUp);
+    };
 
     const onMouseMove = (e) => {
       if (!isDragging) return;
@@ -191,11 +302,42 @@ class YouTubeCaptionExtension {
       document.body.style.webkitUserSelect = '';
       document.body.style.mozUserSelect = '';
       document.body.style.msUserSelect = '';
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('mousemove', this.boundOnMouseMove);
+      document.removeEventListener('mouseup', this.boundOnMouseUp);
     };
 
-    this.initResizing(); // Initialize resizing logic
+    // Store references to the bound functions to remove them later
+    this.boundOnMouseDown = onMouseDown;
+    this.boundOnMouseMove = onMouseMove;
+    this.boundOnMouseUp = onMouseUp;
+
+    dragHandle.addEventListener('mousedown', this.boundOnMouseDown);
+  }
+
+  removeDragging() {
+    const dragHandle = this.panel.querySelector('.drag-handle');
+    if (dragHandle && this.boundOnMouseDown) {
+      dragHandle.removeEventListener('mousedown', this.boundOnMouseDown);
+    }
+    document.removeEventListener('mousemove', this.boundOnMouseMove);
+    document.removeEventListener('mouseup', this.boundOnMouseUp);
+    this.boundOnMouseDown = null;
+    this.boundOnMouseMove = null;
+    this.boundOnMouseUp = null;
+  }
+
+  removeResizing() {
+    const resizers = this.panel.querySelectorAll('.resizer');
+    resizers.forEach(resizer => {
+      if (this.boundResizerMouseDown) {
+        resizer.removeEventListener('mousedown', this.boundResizerMouseDown);
+      }
+    });
+    document.removeEventListener('mousemove', this.boundResize);
+    document.removeEventListener('mouseup', this.boundStopResize);
+    this.boundResize = null;
+    this.boundStopResize = null;
+    this.boundResizerMouseDown = null;
   }
 
   copyToClipboard() {
@@ -220,34 +362,20 @@ class YouTubeCaptionExtension {
     });
   }
 
-  handleTimeUpdate() {
-    if (!this.captions.length) return;
-    const currentTime = this.player.currentTime;
-    const currentCaption = this.captions.find(caption => currentTime >= caption.start && currentTime <= caption.start + caption.duration);
-
-    if (currentCaption) {
-      const allCaptionItems = this.panel.querySelectorAll('.caption-item');
-      allCaptionItems.forEach(item => item.classList.remove('active'));
-
-      const currentCaptionItem = this.panel.querySelector(`[data-start="${currentCaption.start}"]`);
-      if (currentCaptionItem) {
-        currentCaptionItem.classList.add('active');
-        currentCaptionItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }
-
+  // Toggle panel visibility
   togglePanel() {
     this.panelVisible = !this.panelVisible;
     this.panel.style.display = this.panelVisible ? 'block' : 'none';
     if (this.panelVisible) { // Adjust height only if panel becomes visible
       this.adjustCaptionsContainerHeight();
+      this.updatePanelPlacement();
     }
   }
 
   async loadCaptions(targetLanguageCode = 'en') { // Add targetLanguageCode parameter
     console.log('🎬 Loading captions...');
     try {
+      // --- Extract Video ID (Analogous to video_id extraction in subtitles.py) ---
       const videoId = this.getVideoId();
       console.log('📹 Video ID:', videoId);
 
@@ -257,6 +385,7 @@ class YouTubeCaptionExtension {
         return;
       }
 
+      // --- API Key Scraping (Analogous to API key scraping in subtitles.py) ---
       const apiKey = await this.getApiKey();
       if (!apiKey) {
         console.error('❌ No API key found');
@@ -264,6 +393,7 @@ class YouTubeCaptionExtension {
         return;
       }
 
+      // --- Player Data Fetching (Analogous to player data fetching in subtitles.py) ---
       const playerResponse = await this.getPlayerResponse(videoId, apiKey);
       if (!playerResponse) {
         console.error('❌ No player response found');
@@ -290,7 +420,7 @@ class YouTubeCaptionExtension {
       }
       if (!subtitleTrack && this.defaultLanguageCode !== effectiveLanguageCode) { // Avoid double check if default was already target/current
         effectiveLanguageCode = this.defaultLanguageCode;
-        subtitleTrack = captionTracks.find(track => track.languageCode === effectiveLanguageCode);
+        subtitleTrack = captionTracks[0]; // Fallback to first available if default not found
       }
       if (!subtitleTrack && captionTracks.length > 0) { // Fallback to first available track
         effectiveLanguageCode = captionTracks[0].languageCode;
@@ -306,6 +436,7 @@ class YouTubeCaptionExtension {
       this.currentLanguageCode = effectiveLanguageCode; // Store the language that was actually loaded
       this.populateLanguageDropdown(captionTracks, this.currentLanguageCode); // Populate dropdown with the actually loaded language selected
 
+      // --- Subtitle XML Fetching (Analogous to subtitle XML fetching in subtitles.py) ---
       const subtitleUrl = subtitleTrack.baseUrl;
       const subtitleXml = await this.fetchSubtitleXml(subtitleUrl);
       if (!subtitleXml) {
@@ -314,6 +445,7 @@ class YouTubeCaptionExtension {
         return;
       }
 
+      // --- Subtitle XML Parsing (Analogous to subtitle XML parsing in subtitles.py) ---
       this.captions = this.parseCaptionXML(subtitleXml);
       this.renderCaptions();
       this.updateWordCount();
@@ -325,11 +457,21 @@ class YouTubeCaptionExtension {
     }
   }
 
+  /**
+   * Extracts the YouTube video ID from the current URL.
+   * Analogous to video_id extraction in `subtitles.py`.
+   * @returns {string|null} The video ID or null if not found.
+   */
   getVideoId() {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('v');
   }
 
+  /**
+   * Scrapes the YouTube Innertube API key from the page HTML.
+   * Analogous to API key scraping in `subtitles.py`.
+   * @returns {Promise<string|null>} The API key or null if not found.
+   */
   async getApiKey() {
     try {
       const response = await fetch(window.location.href);
@@ -344,13 +486,20 @@ class YouTubeCaptionExtension {
     return null;
   }
 
+  /**
+   * Fetches the player response data from YouTube's internal API.
+   * Analogous to player data fetching in `subtitles.py`.
+   * @param {string} videoId - The ID of the YouTube video.
+   * @param {string} apiKey - The YouTube Innertube API key.
+   * @returns {Promise<object|null>} The player response object or null if an error occurs.
+   */
   async getPlayerResponse(videoId, apiKey) {
     const playerUrl = `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`;
     const payload = {
       context: {
         client: {
           clientName: 'WEB',
-          clientVersion: '2.20210721.00.00'
+          clientVersion: '2.20210721.00.00' // Specific client version to mimic browser requests
         }
       },
       videoId: videoId
@@ -371,6 +520,12 @@ class YouTubeCaptionExtension {
     return null;
   }
 
+  /**
+   * Fetches the subtitle XML content from the provided URL.
+   * Analogous to subtitle XML fetching in `subtitles.py`.
+   * @param {string} url - The URL to the subtitle XML file.
+   * @returns {Promise<string|null>} The XML content as a string or null if an error occurs.
+   */
   async fetchSubtitleXml(url) {
     try {
       const response = await fetch(url);
@@ -381,6 +536,12 @@ class YouTubeCaptionExtension {
     return null;
   }
 
+  /**
+   * Parses the raw XML subtitle text into a structured array of caption objects.
+   * Analogous to subtitle XML parsing in `subtitles.py`.
+   * @param {string} xmlText - The raw XML string containing subtitle data.
+   * @returns {Array<object>} An array of caption objects, each with start, duration, and text properties.
+   */
   parseCaptionXML(xmlText) {
     console.log('🔧 Parsing caption XML...');
     try {
@@ -391,8 +552,9 @@ class YouTubeCaptionExtension {
       
       for (const textElement of textElements) {
         const textContent = textElement.textContent.trim();
+        // Stop parsing if an AI directive block is encountered
         if (textContent.includes('--==// AI DIRECTIVE BLOCK: START //==--')) {
-          break; // Stop parsing when the marker is found
+          break;
         }
         const start = parseFloat(textElement.getAttribute('start'));
         const duration = parseFloat(textElement.getAttribute('dur') || '0');
@@ -403,6 +565,7 @@ class YouTubeCaptionExtension {
       }
 
       const captions = captionsData.map((caption, index) => {
+        // Calculate end time based on next caption's start time or duration
         const endTime = (index + 1 < captionsData.length) ? captionsData[index + 1].start : caption.start + caption.duration;
         return {
           start: caption.start,
@@ -462,21 +625,6 @@ class YouTubeCaptionExtension {
       console.log('✅ Captions copied to clipboard');
     }).catch(err => {
       console.error('❌ Failed to copy captions:', err);
-    });
-  }
-
-  copyToClipboardWithTimeline() {
-    const stripFormatting = this.panel.querySelector('#strip-formatting-checkbox').checked;
-    const text = this.captions.map(caption => {
-      const start = this.formatTime(caption.start);
-      const end = this.formatTime(caption.start + caption.duration);
-      const captionText = stripFormatting ? caption.text.replace(/<[^>]+>/g, '') : caption.text;
-      return `[${start} --> ${end}] ${captionText}`;
-    }).join('\n');
-    navigator.clipboard.writeText(text).then(() => {
-      console.log('✅ Captions with timeline copied to clipboard');
-    }).catch(err => {
-      console.error('❌ Failed to copy captions with timeline:', err);
     });
   }
 
@@ -622,6 +770,13 @@ class YouTubeCaptionExtension {
   }
 
   initResizing() {
+    // First, remove any existing listeners to prevent duplicates
+    this.removeResizing();
+
+    if (this.panelMode !== 'floating') {
+      return; // Only enable resizing in floating mode
+    }
+
     const panel = this.panel;
     const resizers = panel.querySelectorAll('.resizer');
     let currentResizer;
@@ -637,7 +792,10 @@ class YouTubeCaptionExtension {
     let originalMouseY = 0;
 
     const self = this; // Store 'this' reference for use in nested functions
-    function resize(e) {
+    
+    // Store bound functions to be able to remove them
+    this.boundResize = function(e) {
+      if (self.panelMode !== 'floating') return; // Double check mode
       if (currentResizer.classList.contains('bottom-right')) {
         const newWidth = originalWidth + (e.pageX - originalMouseX);
         const newHeight = originalHeight + (e.pageY - originalMouseY);
@@ -690,15 +848,16 @@ class YouTubeCaptionExtension {
         if (newWidth > minimumWidth) panel.style.width = newWidth + 'px';
       }
       self.adjustCaptionsContainerHeight(); // Call adjust height during resize
-    }
+    }.bind(this); // Bind 'this' to access self.adjustCaptionsContainerHeight
 
-    function stopResize() {
-      document.removeEventListener('mousemove', resize);
-      document.removeEventListener('mouseup', stopResize);
-      self.adjustCaptionsContainerHeight(); // Call adjust height after resize is complete
-    }
+    this.boundStopResize = function() {
+      document.removeEventListener('mousemove', this.boundResize);
+      document.removeEventListener('mouseup', this.boundStopResize);
+      this.adjustCaptionsContainerHeight(); // Call adjust height after resize is complete
+    }.bind(this); // Bind 'this'
+
     resizers.forEach(resizer => {
-      resizer.addEventListener('mousedown', function(e) {
+      this.boundResizerMouseDown = function(e) { // Store for removal
         currentResizer = e.target;
         e.preventDefault();
         originalWidth = parseFloat(getComputedStyle(panel, null).getPropertyValue('width').replace('px', ''));
@@ -707,9 +866,10 @@ class YouTubeCaptionExtension {
         originalY = panel.getBoundingClientRect().top;
         originalMouseX = e.pageX;
         originalMouseY = e.pageY;
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
-      });
+        document.addEventListener('mousemove', this.boundResize);
+        document.addEventListener('mouseup', this.boundStopResize);
+      }.bind(this); // Bind 'this'
+      resizer.addEventListener('mousedown', this.boundResizerMouseDown);
     });
   }
 

@@ -8,11 +8,7 @@ html, body {
 
 .caption-search-panel {
   box-sizing: inherit;
-  position: fixed;
-  top: 60px; /* Fixed top position */
-  left: calc(50% - 175px); /* Initial horizontal position (350px / 2) */
-  /* transform: translateX(-50%); Removed to allow direct left manipulation */
-  width: 350px;
+  /* Common styles */
   max-height: 80vh;
   min-height: 200px;
   background-color: #282828;
@@ -26,11 +22,26 @@ html, body {
   color: #eee;
 }
 
+.caption-search-panel-floating {
+  position: fixed;
+  top: 60px; /* Fixed top position */
+  left: calc(50% - 175px); /* Initial horizontal position (350px / 2) */
+  width: 350px;
+}
+
+.caption-search-panel-below-video {
+  position: relative; /* Flows with document */
+  width: 100%; /* Take full width of parent */
+  margin-top: 12px; /* Some space below the video */
+  max-width: 1280px; /* Max width to align with YouTube content */
+  margin-left: auto; /* Center it */
+  margin-right: auto; /* Center it */
+}
+
 /* Resizer styles */
 .resizer {
   position: absolute;
   background: rgba(0, 0, 0, 0); /* Transparent */
-  z-index: 10000; /* Above everything */
 }
 
 .resizer.top-left, .resizer.top-right, .resizer.bottom-left, .resizer.bottom-right {
@@ -95,20 +106,11 @@ html, body {
 .panel-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 8px 12px;
   background-color: #333;
   border-bottom: 1px solid #444;
-  cursor: grab;
   position: relative; /* Needed for absolute positioning of drag-handle */
-}
-
-.drag-handle {
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  z-index: 1;
 }
 
 .panel-header h3 {
@@ -116,8 +118,8 @@ html, body {
   font-size: 16px;
   font-weight: 500;
   flex-grow: 1;
-  z-index: 2; /* Ensure text is above drag handle */
-  position: relative; /* To make z-index effective */
+  text-align: center;
+  cursor: grab;
   user-select: none; /* Prevent text selection */
   -webkit-user-select: none;
   -moz-user-select: none;

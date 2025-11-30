@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "YouTube Caption Search",
-  "version": "0.1",
+  "version": "0.2",
   "description": "Search and navigate YouTube video captions with ease",
   
   "permissions": [
