@@ -75,16 +75,44 @@ class YouTubeCaptionExtension {
   }
 
   createToggleButton() {
+    if (document.querySelector('.caption-search-btn') || document.querySelector('.caption-search-floating-btn')) {
+      return;
+    }
     const controls = document.querySelector('.ytp-right-controls');
-    if (!controls) return;
-
+    
     const button = document.createElement('button');
-    button.className = 'ytp-button caption-search-btn caption-search-icon-button';
     button.innerHTML = '📝';
     button.title = 'Search Captions';
-    
     button.addEventListener('click', () => this.togglePanel());
-    controls.insertBefore(button, controls.firstChild);
+
+    if (controls) {
+      // Desktop YouTube
+      button.className = 'ytp-button caption-search-btn caption-search-icon-button';
+      controls.insertBefore(button, controls.firstChild);
+    } else {
+      // Mobile or fallback
+      button.className = 'caption-search-floating-btn';
+      // Style for floating button
+      Object.assign(button.style, {
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        width: '50px',
+        height: '50px',
+        borderRadius: '50%',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        color: 'white',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        fontSize: '24px',
+        zIndex: '9999',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+      });
+      document.body.appendChild(button);
+    }
   }
 
   createPanel() {
@@ -468,9 +496,18 @@ class YouTubeCaptionExtension {
       this.initDragging(); // Re-initialize or enable if needed
       this.initResizing(); // Re-initialize or enable if needed
     } else { // 'below-video'
-      const targetElement = document.querySelector('#player'); // Common container below the video
-      if (targetElement) {
-        targetElement.appendChild(this.panel);
+      // Try to insert after #player in the main column
+      const player = document.querySelector('#player');
+      const targetParent = player ? player.parentNode : null;
+      
+      if (targetParent) {
+        // Insert after player (or append if it's the last child)
+        if (player.nextSibling) {
+            targetParent.insertBefore(this.panel, player.nextSibling);
+        } else {
+            targetParent.appendChild(this.panel);
+        }
+        
         this.panel.classList.add('caption-search-panel-below-video');
         this.panel.classList.remove('caption-search-panel-floating');
         
@@ -486,7 +523,7 @@ class YouTubeCaptionExtension {
         document.body.appendChild(this.panel);
         this.panelMode = 'floating'; // Revert to floating if target not found
         localStorage.setItem('captionSearchPanelMode', this.panelMode);
-        console.warn('Target element #player not found, reverting to floating mode.');
+        console.warn('Target element #player parent not found, reverting to floating mode.');
         this.panel.classList.add('caption-search-panel-floating');
         this.panel.classList.remove('caption-search-panel-below-video');
         this.initDragging();
@@ -1223,6 +1260,11 @@ class YouTubeCaptionExtension {
         console.log('🔄 Video changed, reloading captions...');
         // Reload captions for new video
         setTimeout(() => this.loadCaptions(), 2000); // Increased delay for page to fully load
+      }
+      
+      // Check if button is missing (e.g. after theater mode switch)
+      if (!document.querySelector('.caption-search-btn') && !document.querySelector('.caption-search-floating-btn')) {
+         this.createToggleButton();
       }
     });
     
