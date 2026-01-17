@@ -1,10 +1,15 @@
 {
   "manifest_version": 2,
   "name": "YouTube Caption Search",
-  "version": "0.3",
+  "version": "0.5",
   "description": "Search and navigate YouTube video captions with ease",
   "license": "MIT",
-  
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{2491f127-7449-4ac2-a4b6-17450333a9e0}",
+      "data_collection_permissions": {"required": ["none"]}
+    }
+  },
   "permissions": [
     "activeTab",
     "*://www.youtube.com/*"

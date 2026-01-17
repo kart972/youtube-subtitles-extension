@@ -131,6 +131,11 @@ class YouTubeCaptionExtension {
                   <label for="caption-size-slider">Caption Size:</label>
                   <input type="range" id="caption-size-slider" min="10" max="30" step="1" value="13">
               </div>
+              <div class="upload-subtitles">
+                  <label>Import Subtitles (.srt, .vtt):</label>
+                  <button class="upload-btn">Choose File</button>
+                  <input type="file" id="subtitle-file-input" accept=".srt,.vtt" style="display: none;">
+              </div>
           </div>
       </div>
       <div class="search-container">
@@ -237,6 +242,13 @@ class YouTubeCaptionExtension {
       this.applyCaptionSize(size);
     });
 
+    // Event listener for file upload
+    const uploadBtn = this.panel.querySelector('.upload-btn');
+    const fileInput = this.panel.querySelector('#subtitle-file-input');
+    
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
+
     // Fix buttons overlapping with drag handle
     
 
@@ -250,6 +262,154 @@ class YouTubeCaptionExtension {
     // this.updatePanelPlacement();
     this.initDragging(); // Initialize dragging logic
     this.initResizing(); // Initialize resizing logic
+  }
+
+  handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target.result;
+      const extension = file.name.split('.').pop().toLowerCase();
+      
+      let parsedCaptions = [];
+      try {
+        if (extension === 'srt') {
+          parsedCaptions = this.parseSRT(content);
+        } else if (extension === 'vtt') {
+          parsedCaptions = this.parseVTT(content);
+        } else {
+          alert('Unsupported file format. Please upload .srt or .vtt');
+          return;
+        }
+
+        if (parsedCaptions.length > 0) {
+          this.captions = parsedCaptions;
+          this.renderCaptions();
+          this.updateWordCount();
+          this.adjustCaptionsContainerHeight();
+          
+          // Update UI to reflect custom file
+          const languageSelect = this.panel.querySelector('#language-select');
+          // Add and select a "Custom File" option
+          let customOption = languageSelect.querySelector('option[value="custom"]');
+          if (!customOption) {
+            customOption = document.createElement('option');
+            customOption.value = 'custom';
+            customOption.textContent = `File: ${file.name}`;
+            languageSelect.appendChild(customOption);
+          } else {
+            customOption.textContent = `File: ${file.name}`;
+          }
+          languageSelect.value = 'custom';
+          
+          console.log(`✅ Loaded ${parsedCaptions.length} captions from file`);
+        } else {
+          alert('No valid captions found in file.');
+        }
+      } catch (error) {
+        console.error('Error parsing subtitle file:', error);
+        alert('Error parsing subtitle file');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  parseSRT(content) {
+    const captions = [];
+    const blocks = content.trim().split(/\n\s*\n/);
+    
+    blocks.forEach(block => {
+      const lines = block.split('\n');
+      if (lines.length < 3) return;
+
+      // Skip index line if present (some bad SRTs might format differently, but standard has index)
+      let timeLineIndex = 1;
+      if (!lines[0].includes('-->')) {
+        // If first line doesn't have arrow, assume it's index
+        timeLineIndex = 1; 
+      } else {
+        timeLineIndex = 0;
+      }
+      
+      const timeLine = lines[timeLineIndex];
+      const textLines = lines.slice(timeLineIndex + 1);
+      
+      if (!timeLine || !timeLine.includes('-->')) return;
+
+      const [startStr, endStr] = timeLine.split('-->').map(s => s.trim());
+      const start = this.timeToSeconds(startStr);
+      const end = this.timeToSeconds(endStr);
+      const text = textLines.join(' ');
+
+      if (!isNaN(start) && !isNaN(end)) {
+        captions.push({
+          start,
+          duration: end - start,
+          text
+        });
+      }
+    });
+    return captions;
+  }
+
+  parseVTT(content) {
+    const captions = [];
+    const lines = content.trim().split('\n');
+    let i = 0;
+    
+    // Skip WEBVTT header
+    if (lines[0].startsWith('WEBVTT')) i++;
+    while (i < lines.length && lines[i].trim() === '') i++;
+
+    while (i < lines.length) {
+      // Check for optional identifier
+      if (lines[i].trim() !== '' && !lines[i].includes('-->')) {
+        i++; // Skip identifier
+      }
+
+      if (i >= lines.length) break;
+
+      const timeLine = lines[i];
+      if (timeLine.includes('-->')) {
+        const [startStr, endStr] = timeLine.split('-->').map(s => s.trim().split(' ')[0]); // Remove align settings
+        const start = this.timeToSeconds(startStr);
+        const end = this.timeToSeconds(endStr);
+        
+        i++;
+        let text = [];
+        while (i < lines.length && lines[i].trim() !== '') {
+          text.push(lines[i]);
+          i++;
+        }
+        
+        if (!isNaN(start) && !isNaN(end)) {
+          captions.push({
+            start,
+            duration: end - start,
+            text: text.join(' ')
+          });
+        }
+      } else {
+        i++;
+      }
+    }
+    return captions;
+  }
+
+  timeToSeconds(timeStr) {
+    if (!timeStr) return 0;
+    timeStr = timeStr.replace(',', '.'); // Handle comma in SRT
+    const parts = timeStr.split(':');
+    let seconds = 0;
+    
+    if (parts.length === 3) {
+      seconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+    } else if (parts.length === 2) {
+      seconds = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+    }
+    return seconds;
   }
 
   setUiSelectorValue(selector, value) {
@@ -749,8 +909,22 @@ class YouTubeCaptionExtension {
     const captionTexts = this.panel.querySelectorAll('.caption-text');
     captionTexts.forEach(element => {
       const text = element.textContent;
-      const regex = new RegExp(`(${term})`, 'gi');
-      element.innerHTML = text.replace(regex, '<mark>$1</mark>');
+      if (!term) {
+        element.textContent = text;
+        return;
+      }
+      const regex = new RegExp(`(${term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+      const parts = text.split(regex);
+      element.innerHTML = ''; // Clear the element
+      parts.forEach(part => {
+        if (part.toLowerCase() === term.toLowerCase()) {
+          const mark = document.createElement('mark');
+          mark.textContent = part;
+          element.appendChild(mark);
+        } else {
+          element.appendChild(document.createTextNode(part));
+        }
+      });
     });
   }
 
@@ -769,18 +943,31 @@ class YouTubeCaptionExtension {
   showError(message) {
     console.log('❌ Showing error:', message);
     const container = this.panel.querySelector('.captions-container');
-    container.innerHTML = `
-      <div class="error">
-        <div>${message}</div>
-        <button class="debug-btn" style="margin-top: 10px; padding: 5px 10px; background: #333; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
-          Show Debug Info
-        </button>
-      </div>
-    `;
-    
-    container.querySelector('.debug-btn').addEventListener('click', () => {
+    container.innerHTML = ''; // Clear container
+
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error';
+
+    const messageDiv = document.createElement('div');
+    messageDiv.textContent = message;
+    errorDiv.appendChild(messageDiv);
+
+    const debugButton = document.createElement('button');
+    debugButton.className = 'debug-btn';
+    debugButton.style.marginTop = '10px';
+    debugButton.style.padding = '5px 10px';
+    debugButton.style.background = '#333';
+    debugButton.style.color = '#fff';
+    debugButton.style.border = 'none';
+    debugButton.style.borderRadius = '4px';
+    debugButton.style.cursor = 'pointer';
+    debugButton.textContent = 'Show Debug Info';
+    debugButton.addEventListener('click', () => {
       this.showDebugInfo();
     });
+    errorDiv.appendChild(debugButton);
+
+    container.appendChild(errorDiv);
   }
 
   showDebugInfo() {
@@ -797,19 +984,38 @@ class YouTubeCaptionExtension {
     console.log('🐛 Debug Info:', debugInfo);
     
     const container = this.panel.querySelector('.captions-container');
-    container.innerHTML = `
-      <div class="debug-info" style="padding: 16px; font-size: 12px; font-family: monospace;">
-        <h4>Debug Information:</h4>
-        <pre>${JSON.stringify(debugInfo, null, 2)}</pre>
-        <button class="retry-btn" style="margin-top: 10px; padding: 5px 10px; background: #4a9eff; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
-          Retry Loading Captions
-        </button>
-      </div>
-    `;
-    
-    container.querySelector('.retry-btn').addEventListener('click', () => {
+    container.innerHTML = ''; // Clear container
+
+    const debugInfoDiv = document.createElement('div');
+    debugInfoDiv.className = 'debug-info';
+    debugInfoDiv.style.padding = '16px';
+    debugInfoDiv.style.fontSize = '12px';
+    debugInfoDiv.style.fontFamily = 'monospace';
+
+    const h4 = document.createElement('h4');
+    h4.textContent = 'Debug Information:';
+    debugInfoDiv.appendChild(h4);
+
+    const pre = document.createElement('pre');
+    pre.textContent = JSON.stringify(debugInfo, null, 2);
+    debugInfoDiv.appendChild(pre);
+
+    const retryButton = document.createElement('button');
+    retryButton.className = 'retry-btn';
+    retryButton.style.marginTop = '10px';
+    retryButton.style.padding = '5px 10px';
+    retryButton.style.background = '#4a9eff';
+    retryButton.style.color = '#fff';
+    retryButton.style.border = 'none';
+    retryButton.style.borderRadius = '4px';
+    retryButton.style.cursor = 'pointer';
+    retryButton.textContent = 'Retry Loading Captions';
+    retryButton.addEventListener('click', () => {
       this.loadCaptions();
     });
+    debugInfoDiv.appendChild(retryButton);
+
+    container.appendChild(debugInfoDiv);
   }
 
   adjustCaptionsContainerHeight() {

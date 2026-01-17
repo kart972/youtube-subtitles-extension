@@ -33,3 +33,4 @@ ENV.bak/
 # Config files	
 *.md
 !README.md
+.web-extension-id

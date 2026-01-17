@@ -1,6 +1,7 @@
 {
   "version": { "license": "MIT" },
   "categories": { "firefox": ["productivity", "accessibility"] },
+  
   "summary": {
     "en-US": "Automatically fetches and displays YouTube subtitles for easier viewing",
     "fr": "Récupère et affiche automatiquement les sous-titres YouTube pour une lecture facilitée"
