@@ -849,27 +849,61 @@ class YouTubeCaptionExtension {
     const captions = filteredCaptions || this.captions;
     const stripFormatting = this.panel.querySelector('#strip-formatting-checkbox').checked;
 
+    container.innerHTML = ''; // Clear existing content
+
     if (captions.length === 0) {
-      container.innerHTML = '<div class="no-captions">No captions available</div>';
+      const noCaptions = document.createElement('div');
+      noCaptions.className = 'no-captions';
+      noCaptions.textContent = 'No captions available';
+      container.appendChild(noCaptions);
       return;
     }
 
-    container.innerHTML = captions.map((caption, index) => {
-      const text = stripFormatting ? caption.text.replace(/<[^>]+>/g, '') : caption.text;
-      return `
-      <div class="caption-item" data-start="${caption.start}">
-        <div class="caption-time">${this.formatTime(caption.start)}</div>
-        <div class="caption-text">${text}</div>
-      </div>
-    `}).join('');
+    const fragment = document.createDocumentFragment();
 
-    // Add click listeners to caption items
-    container.querySelectorAll('.caption-item').forEach(item => {
+    captions.forEach((caption) => {
+      const item = document.createElement('div');
+      item.className = 'caption-item';
+      item.dataset.start = caption.start;
+
+      const time = document.createElement('div');
+      time.className = 'caption-time';
+      time.textContent = this.formatTime(caption.start);
+      item.appendChild(time);
+
+      const textDiv = document.createElement('div');
+      textDiv.className = 'caption-text';
+      
+      // If we are stripping formatting, we remove tags. 
+      // If not, we might want to keep basic formatting.
+      // However, to be safe from XSS, we should generally use textContent.
+      // If the original subtitle has trusted HTML (like <i>), we'd need a sanitizer.
+      // For now, let's treat it as text or safe HTML if we really need it.
+      // But to satisfy the linter completely, textContent is best.
+      // If the user *expects* <i> tags to render as italics, this change will show "<i>text</i>".
+      // Let's implement a simple HTML entity decoder/tag stripper if needed, 
+      // OR just set textContent which is safest. 
+      
+      // Original logic was:
+      // const text = stripFormatting ? caption.text.replace(/<[^>]+>/g, '') : caption.text;
+      
+      if (stripFormatting) {
+          textDiv.textContent = caption.text.replace(/<[^>]+>/g, '');
+      } else {
+          textDiv.textContent = caption.text;
+      }
+      
+      item.appendChild(textDiv);
+      
       item.addEventListener('click', () => {
         const startTime = parseFloat(item.dataset.start);
         this.seekToTime(startTime);
       });
+
+      fragment.appendChild(item);
     });
+
+    container.appendChild(fragment);
   }
 
   copyToClipboard() {
