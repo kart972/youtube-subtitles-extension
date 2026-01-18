@@ -12,10 +12,17 @@ class YouTubeCaptionExtension {
     this.panel = null;
     this.player = null;
     this.panelMode = localStorage.getItem('captionSearchPanelMode') || 'floating'; // Initialize panel mode
+    
+    // Overlay Mode state
+    this.isOverlayMode = false;
+    this.overlayElement = null;
+    this.overlayTextElement = null;
+
     // Wait for YouTube player to load
     await this.waitForPlayer();
     this.createToggleButton();
     this.createPanel();
+    this.createOverlay(); // Create overlay elements
     this.updatePanelPlacement(); // Set initial panel placement
 
     this.boundHandleTimeUpdate = this.handleTimeUpdate.bind(this);
@@ -28,10 +35,62 @@ class YouTubeCaptionExtension {
       }
     });
 
+    // Keyboard shortcut for Overlay Mode (Alt+C)
+    document.addEventListener('keydown', (e) => {
+      if (e.altKey && e.code === 'KeyC') {
+        e.preventDefault();
+        this.toggleOverlayMode();
+      }
+    });
+
     this.loadCaptions();
     
     // Listen for video changes
     this.observeVideoChanges();
+  }
+
+  createOverlay() {
+    this.overlayElement = document.createElement('div');
+    this.overlayElement.className = 'caption-search-overlay';
+    
+    this.overlayTextElement = document.createElement('span');
+    this.overlayTextElement.className = 'caption-search-overlay-text';
+    this.overlayElement.appendChild(this.overlayTextElement);
+
+    // Append to video player container so it's visible in full screen
+    const playerContainer = document.querySelector('.html5-video-player') || document.body;
+    playerContainer.appendChild(this.overlayElement);
+  }
+
+  toggleOverlayMode() {
+    this.isOverlayMode = !this.isOverlayMode;
+    
+    if (this.isOverlayMode) {
+      // Enter Overlay Mode
+      this.overlayElement.style.display = 'block';
+      this.panel.style.display = 'none'; // Hide normal panel
+      this.panelVisible = false; // Sync state
+      
+      // Ensure time update listener is active for overlay updates
+      // We force it on in overlay mode, regardless of "Follow" toggle
+      this.player.removeEventListener('timeupdate', this.boundHandleTimeUpdate); // Remove to avoid duplicate
+      this.player.addEventListener('timeupdate', this.boundHandleTimeUpdate);
+      
+      // Initial update
+      this.handleTimeUpdate();
+      console.log('📺 Overlay Mode: ON');
+    } else {
+      // Exit Overlay Mode
+      this.overlayElement.style.display = 'none';
+      
+      // Revert "Follow" listener to checkbox state
+      const followToggle = this.panel.querySelector('#follow-toggle-checkbox');
+      if (!followToggle.checked) {
+        this.player.removeEventListener('timeupdate', this.boundHandleTimeUpdate);
+      }
+      
+      console.log('📺 Overlay Mode: OFF');
+    }
   }
 
   handleTimeUpdate() {
@@ -39,24 +98,39 @@ class YouTubeCaptionExtension {
     const currentTime = this.player.currentTime;
     const currentCaption = this.captions.find(caption => currentTime >= caption.start && currentTime <= caption.start + caption.duration);
 
-    if (currentCaption) {
-      const allCaptionItems = this.panel.querySelectorAll('.caption-item');
-      allCaptionItems.forEach(item => item.classList.remove('active'));
-
-      const currentCaptionItem = this.panel.querySelector(`[data-start="${currentCaption.start}"]`);
-      if (currentCaptionItem) {
-        currentCaptionItem.classList.add('active');
-
-        // Scroll only the captions container (won't move page focus)
-        const captionsContainer = this.panel.querySelector('.captions-container');
-        if (captionsContainer) {
-          const itemRect = currentCaptionItem.getBoundingClientRect();
-          const containerRect = captionsContainer.getBoundingClientRect();
-          const itemOffsetTop = itemRect.top - containerRect.top + captionsContainer.scrollTop;
-          const targetScrollTop = itemOffsetTop - (captionsContainer.clientHeight / 2) + (currentCaptionItem.clientHeight / 2);
-          captionsContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+    if (this.isOverlayMode) {
+        // Overlay Mode Update
+        if (currentCaption) {
+            // Use textContent for safety, strip HTML if any
+            // We can reuse the strip formatting setting or just always strip for overlay
+            // Typically native captions don't show raw HTML
+            this.overlayTextElement.textContent = currentCaption.text.replace(/<[^>]+>/g, '');
+            this.overlayElement.style.display = 'block'; // Ensure visible
+        } else {
+            this.overlayTextElement.textContent = '';
+            this.overlayElement.style.display = 'none'; // Hide container if no text
         }
-      }
+    } else {
+        // Standard Panel Update
+        if (currentCaption) {
+          const allCaptionItems = this.panel.querySelectorAll('.caption-item');
+          allCaptionItems.forEach(item => item.classList.remove('active'));
+
+          const currentCaptionItem = this.panel.querySelector(`[data-start="${currentCaption.start}"]`);
+          if (currentCaptionItem) {
+            currentCaptionItem.classList.add('active');
+
+            // Scroll only the captions container (won't move page focus)
+            const captionsContainer = this.panel.querySelector('.captions-container');
+            if (captionsContainer) {
+              const itemRect = currentCaptionItem.getBoundingClientRect();
+              const containerRect = captionsContainer.getBoundingClientRect();
+              const itemOffsetTop = itemRect.top - containerRect.top + captionsContainer.scrollTop;
+              const targetScrollTop = itemOffsetTop - (captionsContainer.clientHeight / 2) + (currentCaptionItem.clientHeight / 2);
+              captionsContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+            }
+          }
+        }
     }
   }
 
@@ -1265,6 +1339,12 @@ class YouTubeCaptionExtension {
       // Check if button is missing (e.g. after theater mode switch)
       if (!document.querySelector('.caption-search-btn') && !document.querySelector('.caption-search-floating-btn')) {
          this.createToggleButton();
+      }
+
+      // Re-attach overlay if missing and we are in overlay mode or it was just lost
+      if (this.overlayElement && !document.body.contains(this.overlayElement) && !document.querySelector('.caption-search-overlay')) {
+          const playerContainer = document.querySelector('.html5-video-player') || document.body;
+          playerContainer.appendChild(this.overlayElement);
       }
     });
     

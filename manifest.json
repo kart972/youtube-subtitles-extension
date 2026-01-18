@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "YouTube Caption Search",
-  "version": "0.5",
+  "version": "0.6",
   "description": "Search and navigate YouTube video captions with ease",
   "license": "MIT",
   "browser_specific_settings": {

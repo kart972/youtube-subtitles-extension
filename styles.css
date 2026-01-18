@@ -560,3 +560,37 @@ html, body {
   cursor: pointer !important;
   padding: 8px !important;
 }
+
+/* Native-like Overlay Mode */
+.caption-search-overlay {
+  position: absolute;
+  bottom: 40px; /* Space from bottom controls */
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none; /* Let clicks pass through to video */
+  z-index: 1000; /* Above video but below controls if possible */
+  width: 80%;
+  display: none; /* Hidden by default */
+}
+
+.caption-search-overlay-text {
+  display: inline-block;
+  background-color: rgba(8, 8, 8, 0.75);
+  color: #fff;
+  font-family: "YouTube Noto", Roboto, "Arial Unicode Ms", Arial, Helvetica, sans-serif;
+  font-size: 24px;
+  line-height: 1.3;
+  padding: 4px 12px;
+  border-radius: 4px;
+  white-space: pre-wrap; /* Preserve newlines */
+  text-shadow: 0 0 4px rgba(0,0,0,0.8);
+}
+
+/* Adjust for mobile if needed */
+@media (max-width: 768px) {
+  .caption-search-overlay-text {
+    font-size: 18px;
+    bottom: 60px;
+  }
+}
