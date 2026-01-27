@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "YouTube Caption Search",
-  "version": "0.6",
+  "version": "0.7",
   "description": "Search and navigate YouTube video captions with ease",
   "license": "MIT",
   "browser_specific_settings": {
@@ -12,6 +12,8 @@
   },
   "permissions": [
     "activeTab",
+    "*://raw.githubusercontent.com/*",
+    "*://api.github.com/*",
     "*://www.youtube.com/*",
     "*://m.youtube.com/*"
   ],

@@ -49,6 +49,15 @@ class YouTubeCaptionExtension {
     this.observeVideoChanges();
   }
 
+  // Safety check: ensure panel exists before accessing
+  isPanelValid() {
+    try {
+      return this.panel && document.body.contains(this.panel);
+    } catch (e) {
+      return false;
+    }
+  }
+
   createOverlay() {
     this.overlayElement = document.createElement('div');
     this.overlayElement.className = 'caption-search-overlay';
@@ -63,55 +72,68 @@ class YouTubeCaptionExtension {
   }
 
   toggleOverlayMode() {
+    if (!this.isPanelValid() || !this.overlayElement || !this.player) return; // Safety check
+    
     this.isOverlayMode = !this.isOverlayMode;
     
-    if (this.isOverlayMode) {
-      // Enter Overlay Mode
-      this.overlayElement.style.display = 'block';
-      this.panel.style.display = 'none'; // Hide normal panel
-      this.panelVisible = false; // Sync state
-      
-      // Ensure time update listener is active for overlay updates
-      // We force it on in overlay mode, regardless of "Follow" toggle
-      this.player.removeEventListener('timeupdate', this.boundHandleTimeUpdate); // Remove to avoid duplicate
-      this.player.addEventListener('timeupdate', this.boundHandleTimeUpdate);
-      
-      // Initial update
-      this.handleTimeUpdate();
-      console.log('📺 Overlay Mode: ON');
-    } else {
-      // Exit Overlay Mode
-      this.overlayElement.style.display = 'none';
-      
-      // Revert "Follow" listener to checkbox state
-      const followToggle = this.panel.querySelector('#follow-toggle-checkbox');
-      if (!followToggle.checked) {
-        this.player.removeEventListener('timeupdate', this.boundHandleTimeUpdate);
+    try {
+      if (this.isOverlayMode) {
+        // Enter Overlay Mode
+        this.overlayElement.style.display = 'block';
+        if (this.panel && document.body.contains(this.panel)) {
+          this.panel.style.display = 'none'; // Hide normal panel
+        }
+        this.panelVisible = false; // Sync state
+        
+        // Ensure time update listener is active for overlay updates
+        // We force it on in overlay mode, regardless of "Follow" toggle
+        this.player.removeEventListener('timeupdate', this.boundHandleTimeUpdate); // Remove to avoid duplicate
+        this.player.addEventListener('timeupdate', this.boundHandleTimeUpdate);
+        
+        // Initial update
+        this.handleTimeUpdate();
+        console.log('📺 Overlay Mode: ON');
+      } else {
+        // Exit Overlay Mode
+        this.overlayElement.style.display = 'none';
+        
+        // Revert "Follow" listener to checkbox state
+        if (this.isPanelValid()) {
+          const followToggle = this.panel.querySelector('#follow-toggle-checkbox');
+          if (followToggle && !followToggle.checked) {
+            this.player.removeEventListener('timeupdate', this.boundHandleTimeUpdate);
+          }
+        }
+        
+        console.log('📺 Overlay Mode: OFF');
       }
-      
-      console.log('📺 Overlay Mode: OFF');
+    } catch (e) {
+      console.error('Error in toggleOverlayMode:', e.message);
     }
   }
 
   handleTimeUpdate() {
-    if (!this.captions.length) return;
-    const currentTime = this.player.currentTime;
-    const currentCaption = this.captions.find(caption => currentTime >= caption.start && currentTime <= caption.start + caption.duration);
+    if (!this.captions.length || !this.player) return;
+    
+    try {
+      const currentTime = this.player.currentTime;
+      const currentCaption = this.captions.find(caption => currentTime >= caption.start && currentTime <= caption.start + caption.duration);
 
-    if (this.isOverlayMode) {
-        // Overlay Mode Update
-        if (currentCaption) {
-            // Use textContent for safety, strip HTML if any
-            // We can reuse the strip formatting setting or just always strip for overlay
-            // Typically native captions don't show raw HTML
-            this.overlayTextElement.textContent = currentCaption.text.replace(/<[^>]+>/g, '');
-            this.overlayElement.style.display = 'block'; // Ensure visible
+      if (this.isOverlayMode) {
+        // Overlay Mode Update - with safety checks
+        if (!this.overlayElement || !document.body.contains(this.overlayElement)) return;
+        
+        if (currentCaption && this.overlayTextElement) {
+          this.overlayTextElement.textContent = currentCaption.text.replace(/<[^>]+>/g, '');
+          this.overlayElement.style.display = 'block';
         } else {
-            this.overlayTextElement.textContent = '';
-            this.overlayElement.style.display = 'none'; // Hide container if no text
+          if (this.overlayTextElement) this.overlayTextElement.textContent = '';
+          this.overlayElement.style.display = 'none';
         }
-    } else {
-        // Standard Panel Update
+      } else {
+        // Standard Panel Update - with safety checks
+        if (!this.isPanelValid()) return;
+        
         if (currentCaption) {
           const allCaptionItems = this.panel.querySelectorAll('.caption-item');
           allCaptionItems.forEach(item => item.classList.remove('active'));
@@ -131,6 +153,10 @@ class YouTubeCaptionExtension {
             }
           }
         }
+      }
+    } catch (e) {
+      // Silently ignore errors from dead objects
+      // This prevents "can't access dead object" errors during overlay mode
     }
   }
 
@@ -455,7 +481,80 @@ class YouTubeCaptionExtension {
     });
     return captions;
   }
+    
+      /**
+       * Fetches captions from the fallback GitHub repository.
+       * @param {string} videoId - The YouTube Video ID.
+       * @returns {Promise<Array<object>|null>} Parsed captions or null.
+       */
+      async fetchGitHubCaptions(videoId) {
+        // --- CONFIGURATION ---
+        // TODO: Change these to your actual GitHub details
+        const GITHUB_USER = 'kart972'; 
+        const GITHUB_REPO = 'subtitles_database'; 
+        const FOLDER_PATH = 'youtube-subtitles';
+        // ---------------------
+    
+        console.log(`🌍 Checking GitHub fallback for Video ID: ${videoId}`);
+    
+        try {
+          // 1. Get directory listing from GitHub API
+          const apiURL = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FOLDER_PATH}`;
+          console.log('Full url:', apiURL);
+          
+          const apiResponse = await fetch(apiURL, {
+            headers: {
+              'Accept': 'application/vnd.github.v3+json',
+              'User-Agent': 'Mozilla/5.0 (YouTube Captions Extension)'
+            }
+          });
+          
+          if (!apiResponse.ok) {
+            console.warn(`⚠️ Could not access GitHub repo: ${apiResponse.status} ${apiResponse.statusText}`);
+            console.error('Response:', await apiResponse.text());
+            return null;
+          }
 
+          const files = await apiResponse.json();
+          console.log(`ℹ️ Retrieved ${files.length} files from GitHub repository.`);
+          
+          // 2. Find .srt file starting with VideoID
+          const matchingFile = files.find(file => 
+            file.name.startsWith(videoId) && file.name.toLowerCase().endsWith('.srt')
+          );
+    
+          if (!matchingFile) {
+            console.log(`ℹ️ No matching .srt file found for ${videoId} in GitHub repository.`);
+            return null;
+          }
+    
+          console.log(`✅ Found fallback file: ${matchingFile.name}`);
+    
+          // 3. Fetch file content
+
+          console.log('Fetching file content from:', matchingFile.download_url);
+
+          const contentResponse = await fetch(matchingFile.download_url);
+          if (!contentResponse.ok) return null;
+    
+          const srtContent = await contentResponse.text();
+          
+          // 4. Parse SRT (using existing parseSRT)
+          const captions = this.parseSRT(srtContent);
+          
+          if (captions && captions.length > 0) {
+            // Store name for UI
+            this.currentCustomFileName = matchingFile.name;
+            return captions;
+          }
+          return null;
+    
+        } catch (error) {
+          console.error('❌ GitHub Fallback Error:', error);
+          return null;
+        }
+      }
+    
   parseVTT(content) {
     const captions = [];
     const lines = content.trim().split('\n');
@@ -768,10 +867,26 @@ class YouTubeCaptionExtension {
         return;
       }
 
+      // --- There is no caption provided ---
+      // Thus try to fetch from GitHub fallback
       const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
       if (!captionTracks || captionTracks.length === 0) {
         console.error('❌ No caption tracks found');
         this.showError('No caption tracks found');
+        // Try GitHub fallback
+        const fallbackCaptions = await this.fetchGitHubCaptions(videoId);
+        if (fallbackCaptions && fallbackCaptions.length > 0) {
+          this.captions = fallbackCaptions;
+          this.currentLanguageCode = 'custom';
+          this.populateLanguageDropdown([], 'custom', this.currentCustomFileName); // Empty list, select custom
+          this.renderCaptions();
+          this.updateWordCount();
+          this.adjustCaptionsContainerHeight();
+          console.log(`✅ Loaded ${fallbackCaptions.length} captions from GitHub fallback`);
+        } else {
+          console.error('❌ No captions found in GitHub fallback either');
+          this.showError('No captions found in GitHub fallback either');
+        }
         return;
       }
 
@@ -1164,7 +1279,7 @@ class YouTubeCaptionExtension {
   }
 
   adjustCaptionsContainerHeight() {
-    if (!this.panel) return;
+    if (!this.isPanelValid()) return;
 
     const panelHeight = this.panel.offsetHeight;
     console.log('DEBUG (adjustHeight): panelHeight:', panelHeight); // Added debug log
