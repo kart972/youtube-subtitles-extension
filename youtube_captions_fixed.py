@@ -11,7 +11,7 @@ def get_captions(url, target_lang='en'):
     """
      
     # Extract Video ID from URL or use as is
-    video_id = input_arg.split("v=")[-1].split("&")[0] if "v=" in url else url
+    video_id = url.split("v=")[-1].split("&")[0] if "v=" in url else url
     
     session = requests.Session()
     
@@ -127,6 +127,56 @@ def get_captions(url, target_lang='en'):
         print(f"[!] Error downloading transcript: {e}")
         return None
 
+def format_timestamp(ms):
+    """Converts milliseconds to SRT timestamp format (HH:MM:SS,mmm)."""
+    ms = int(ms)
+    hours = ms // 3600000
+    minutes = (ms % 3600000) // 60000
+    seconds = (ms % 60000) // 1000
+    milliseconds = ms % 1000
+    return f"{hours:02}:{minutes:02}:{seconds:02},{milliseconds:03}"
+
+def generate_srt(result):
+    """Converts YouTube caption data (JSON or XML) into standard SRT format."""
+    srt_blocks = []
+    
+    if "raw_text" in result:
+        # XML format parsing (Format 3)
+        xml_text = result["raw_text"]
+        # Match <p t="start" d="duration">text</p>
+        pattern = r'<p\s+t="(\d+)"(?: d="(\d+)")?[^>]*>(.*?)</p>'
+        matches = re.findall(pattern, xml_text, re.DOTALL)
+        
+        for i, (start_ms_str, dur_ms_str, raw_content) in enumerate(matches):
+            start_ms = int(start_ms_str)
+            dur_ms = int(dur_ms_str) if dur_ms_str else 2000
+            end_ms = start_ms + dur_ms
+            
+            # Remove any nested tags like <s> and unescape HTML entities
+            clean_text = re.sub(r'<[^>]+>', '', raw_content)
+            clean_text = html.unescape(clean_text).strip()
+            
+            if clean_text:
+                srt_blocks.append(f"{len(srt_blocks) + 1}\n{format_timestamp(start_ms)} --> {format_timestamp(end_ms)}\n{clean_text}\n")
+    else:
+        # JSON format parsing (Innertube)
+        events = result.get('events', [])
+        for event in events:
+            if 'segs' not in event:
+                continue
+            
+            start_ms = event.get('tStartMs', 0)
+            dur_ms = event.get('dDurationMs', 2000)
+            end_ms = start_ms + dur_ms
+            
+            # Combine segments
+            text = "".join([s.get('utf8', '') for s in event['segs']]).strip()
+            
+            if text:
+                srt_blocks.append(f"{len(srt_blocks) + 1}\n{format_timestamp(start_ms)} --> {format_timestamp(end_ms)}\n{text}\n")
+                
+    return "\n".join(srt_blocks)
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python3 youtube_captions_fixed.py <VIDEO_ID_OR_URL> [LANGUAGE_CODE]")
@@ -136,35 +186,10 @@ if __name__ == "__main__":
     target_lang = sys.argv[2] if len(sys.argv) > 2 else 'en'
     
     result = get_captions(input_arg, target_lang)
-
-    print(result)
     
     if result:
-        print("\n--- Transcript Preview (First 10 lines) ---")
-        if "raw_text" in result:
-            xml_text = result["raw_text"]
-            # Support both legacy <text> and newer <p> formats
-            # <p t="12597" d="1741">One of my
-            tags = re.findall(r'<p\s+t="(\d+)"[^>]*>([^<]*)</p>', xml_text)
-            if tags:
-                for i, (t_ms, text) in enumerate(tags[:10]):
-                    print(f"[{float(t_ms)/1000:6.2f}s] {html.unescape(text)}")
-            else:
-                # Legacy format: <text start="1.23" dur="4.56">...</text>
-                tags = re.findall(r'<text\s+start="([\d.]+)"[^>]*>([^<]*)</text>', xml_text)
-                for i, (start, text) in enumerate(tags[:10]):
-                    print(f"[{float(start):6.2f}s] {html.unescape(text)}")
-        else:
-            events = result.get('events', [])
-            line_count = 0
-            for event in events:
-                if 'segs' in event:
-                    text = "".join([s.get('utf8', '') for s in event['segs']]).strip()
-                    if text:
-                        time_sec = event.get('tStartMs', 0) / 1000
-                        print(f"[{time_sec:6.2f}s] {text}")
-                        line_count += 1
-                if line_count >= 10:
-                    break
+        srt_content = generate_srt(result)
+        print(f"\n--- SRT Output ({target_lang}) ---")
+        print(srt_content)
     else:
         print("\n[!] Failed to retrieve subtitles.")
