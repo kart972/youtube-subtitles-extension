@@ -5,6 +5,14 @@ import re
 from xml.etree import ElementTree
 import html # Import the html module
 
+# Backup implementation for testing
+# from youtube_transcript_api import YouTubeTranscriptApi
+
+# ytt_api = YouTubeTranscriptApi()
+# result = ytt_api.fetch("PY9DcIMGxMs")
+# print(result)
+
+
 def get_subtitles(video_url):
     """
     Fetches and displays subtitles for a given YouTube video URL.
@@ -23,6 +31,14 @@ def get_subtitles(video_url):
             print("Error: Could not find INNERTUBE_API_KEY")
             return
         api_key = match.group(1)
+
+        # Regex to find the client version
+        client_version_match = re.search(r'"INNERTUBE_CLIENT_VERSION":"([^"]*)"', html_content)
+        if not client_version_match:
+            print("Error: Could not find INNERTUBE_CLIENT_VERSION")
+            return
+        client_version = client_version_match.group(1)
+
     except requests.exceptions.RequestException as e:
         print(f"Error fetching video page: {e}")
         return
@@ -33,17 +49,27 @@ def get_subtitles(video_url):
         "context": {
             "client": {
                 "clientName": "WEB",
-                "clientVersion": "2.20210721.00.00" # Specific client version to mimic browser requests
+                "clientVersion": client_version
+                #"clientVersion": "2.20210721.00.00" # Specific client version to mimic browser requests
             }
         },
         "videoId": video_id
     }
+    headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Referer": "https://www.youtube.com/",
+    "Accept": "application/json",
+    "Content-Type": "application/json"
+    }
+
 
     try:
-        response = requests.post(player_url, json=payload)
+        response = requests.post(player_url, json=payload,headers=headers)
         response.raise_for_status()
         player_data = response.json()
         
+
+        print(player_data)
         # --- Subtitle Track Selection (Analogous to logic within YouTubeCaptionExtension.loadCaptions() in content.js) ---
         caption_tracks = player_data.get("captions", {}).get("playerCaptionsTracklistRenderer", {}).get("captionTracks", [])
         if not caption_tracks:

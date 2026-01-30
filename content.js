@@ -187,10 +187,12 @@ class YouTubeCaptionExtension {
 
     if (controls) {
       // Desktop YouTube
+      console.log('✅ Found YouTube controls, attaching button...');
       button.className = 'ytp-button caption-search-btn caption-search-icon-button';
       controls.insertBefore(button, controls.firstChild);
     } else {
       // Mobile or fallback
+      console.log('⚠️ YouTube controls not found, using floating button...');
       button.className = 'caption-search-floating-btn';
       // Style for floating button
       Object.assign(button.style, {
@@ -482,78 +484,70 @@ class YouTubeCaptionExtension {
     return captions;
   }
     
-      /**
-       * Fetches captions from the fallback GitHub repository.
-       * @param {string} videoId - The YouTube Video ID.
-       * @returns {Promise<Array<object>|null>} Parsed captions or null.
-       */
-      async fetchGitHubCaptions(videoId) {
-        // --- CONFIGURATION ---
-        // TODO: Change these to your actual GitHub details
-        const GITHUB_USER = 'kart972'; 
-        const GITHUB_REPO = 'subtitles_database'; 
-        const FOLDER_PATH = 'youtube-subtitles';
-        // ---------------------
-    
-        console.log(`🌍 Checking GitHub fallback for Video ID: ${videoId}`);
-    
-        try {
-          // 1. Get directory listing from GitHub API
-          const apiURL = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FOLDER_PATH}`;
-          console.log('Full url:', apiURL);
-          
-          const apiResponse = await fetch(apiURL, {
-            headers: {
-              'Accept': 'application/vnd.github.v3+json',
-              'User-Agent': 'Mozilla/5.0 (YouTube Captions Extension)'
-            }
-          });
-          
-          if (!apiResponse.ok) {
-            console.warn(`⚠️ Could not access GitHub repo: ${apiResponse.status} ${apiResponse.statusText}`);
-            console.error('Response:', await apiResponse.text());
-            return null;
-          }
+  /**
+   * Fetches captions from the fallback GitHub repository.
+   * @param {string} videoId - The YouTube Video ID.
+   * @returns {Promise<Array<object>|null>} Parsed captions or null.
+   */
+  /**
+   * Fetches captions from the fallback GitHub repository.
+   * @param {string} videoId - The YouTube Video ID.
+   * @returns {Promise<Array<object>|null>} Parsed captions or null.
+   */
+  async fetchGitHubCaptions(videoId) {
+    // --- CONFIGURATION ---
+    const GITHUB_USER = 'kart972'; 
+    const GITHUB_REPO = 'subtitles_database'; 
+    const FOLDER_PATH = 'youtube-subtitles';
+    // ---------------------
 
-          const files = await apiResponse.json();
-          console.log(`ℹ️ Retrieved ${files.length} files from GitHub repository.`);
-          
-          // 2. Find .srt file starting with VideoID
-          const matchingFile = files.find(file => 
-            file.name.startsWith(videoId) && file.name.toLowerCase().endsWith('.srt')
-          );
-    
-          if (!matchingFile) {
-            console.log(`ℹ️ No matching .srt file found for ${videoId} in GitHub repository.`);
-            return null;
-          }
-    
-          console.log(`✅ Found fallback file: ${matchingFile.name}`);
-    
-          // 3. Fetch file content
+    console.log(`🌍 Checking GitHub fallback for Video ID: ${videoId}`);
 
-          console.log('Fetching file content from:', matchingFile.download_url);
-
-          const contentResponse = await fetch(matchingFile.download_url);
-          if (!contentResponse.ok) return null;
-    
-          const srtContent = await contentResponse.text();
-          
-          // 4. Parse SRT (using existing parseSRT)
-          const captions = this.parseSRT(srtContent);
-          
-          if (captions && captions.length > 0) {
-            // Store name for UI
-            this.currentCustomFileName = matchingFile.name;
-            return captions;
-          }
-          return null;
-    
-        } catch (error) {
-          console.error('❌ GitHub Fallback Error:', error);
-          return null;
-        }
+    try {
+      // 1. Get directory listing from GitHub API
+      const apiURL = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FOLDER_PATH}`;
+      const apiResponse = await fetch(apiURL);
+      
+      if (!apiResponse.ok) {
+        console.warn(`⚠️ Could not access GitHub repo: ${apiResponse.status}`);
+        return null;
       }
+
+      const files = await apiResponse.json();
+      
+      // 2. Find .srt file starting with VideoID
+      const matchingFile = files.find(file => 
+        file.name.startsWith(videoId) && file.name.toLowerCase().endsWith('.srt')
+      );
+
+      if (!matchingFile) {
+        console.log(`ℹ️ No matching .srt file found for ${videoId} in GitHub repository.`);
+        return null;
+      }
+
+      console.log(`✅ Found fallback file: ${matchingFile.name}`);
+
+      // 3. Fetch file content
+      const contentResponse = await fetch(matchingFile.download_url);
+      if (!contentResponse.ok) return null;
+
+      const srtContent = await contentResponse.text();
+      
+      // 4. Parse SRT (using existing parseSRT)
+      const captions = this.parseSRT(srtContent);
+      
+      if (captions && captions.length > 0) {
+        // Store name for UI
+        this.currentCustomFileName = matchingFile.name;
+        return captions;
+      }
+      return null;
+
+    } catch (error) {
+      console.error('❌ GitHub Fallback Error:', error);
+      return null;
+    }
+  }
     
   parseVTT(content) {
     const captions = [];
@@ -838,101 +832,89 @@ class YouTubeCaptionExtension {
     }
   }
 
-  async loadCaptions(targetLanguageCode = 'en') { // Add targetLanguageCode parameter
+  async loadCaptions(targetLanguageCode = 'en') {
     console.log('🎬 Loading captions...');
     try {
-      // --- Extract Video ID (Analogous to video_id extraction in subtitles.py) ---
       const videoId = this.getVideoId();
-      console.log('📹 Video ID:', videoId);
-
       if (!videoId) {
-        console.error('❌ No video ID found');
         this.showError('No video ID found');
         return;
       }
 
-      // --- API Key Scraping (Analogous to API key scraping in subtitles.py) ---
-      const apiKey = await this.getApiKey();
-      if (!apiKey) {
-        console.error('❌ No API key found');
-        this.showError('No API key found');
-        return;
+      let nativeLoaded = false;
+
+      // 1. Try Native YouTube Captions
+      try {
+        let playerResponse = await this.getPlayerResponseFromPage();
+        if (!playerResponse || !playerResponse.captions) {
+          const apiKey = await this.getApiKey();
+          if (apiKey) {
+            playerResponse = await this.getPlayerResponse(videoId, apiKey);
+          }
+        }
+
+        const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (captionTracks && captionTracks.length > 0) {
+          this.availableCaptionTracks = captionTracks;
+
+          let effectiveLanguageCode = targetLanguageCode;
+          let subtitleTrack = captionTracks.find(track => track.languageCode === effectiveLanguageCode);
+
+          if (!subtitleTrack) {
+            effectiveLanguageCode = this.currentLanguageCode;
+            subtitleTrack = captionTracks.find(track => track.languageCode === effectiveLanguageCode);
+          }
+          if (!subtitleTrack && this.defaultLanguageCode !== effectiveLanguageCode) {
+            effectiveLanguageCode = this.defaultLanguageCode;
+            subtitleTrack = captionTracks[0];
+          }
+          if (!subtitleTrack && captionTracks.length > 0) {
+            effectiveLanguageCode = captionTracks[0].languageCode;
+            subtitleTrack = captionTracks[0];
+          }
+
+          if (subtitleTrack) {
+            const subtitleUrl = subtitleTrack.baseUrl;
+            const subtitleXml = await this.fetchSubtitleXml(subtitleUrl);
+            if (subtitleXml) {
+              this.captions = this.parseCaptionXML(subtitleXml);
+              if (this.captions.length > 0) {
+                this.currentLanguageCode = effectiveLanguageCode;
+                if (this.isPanelValid()) {
+                  this.populateLanguageDropdown(captionTracks, this.currentLanguageCode);
+                  this.renderCaptions();
+                  this.updateWordCount();
+                  this.adjustCaptionsContainerHeight();
+                }
+                console.log('✅ Loaded native captions');
+                nativeLoaded = true;
+              }
+            }
+          }
+        }
+      } catch (nativeError) {
+        console.warn('⚠️ Native caption loading failed:', nativeError);
       }
 
-      // --- Player Data Fetching (Analogous to player data fetching in subtitles.py) ---
-      const playerResponse = await this.getPlayerResponse(videoId, apiKey);
-      if (!playerResponse) {
-        console.error('❌ No player response found');
-        this.showError('No player response found');
-        return;
-      }
+      if (nativeLoaded) return;
 
-      // --- There is no caption provided ---
-      // Thus try to fetch from GitHub fallback
-      const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      if (!captionTracks || captionTracks.length === 0) {
-        console.error('❌ No caption tracks found');
-        this.showError('No caption tracks found');
-        // Try GitHub fallback
-        const fallbackCaptions = await this.fetchGitHubCaptions(videoId);
-        if (fallbackCaptions && fallbackCaptions.length > 0) {
-          this.captions = fallbackCaptions;
-          this.currentLanguageCode = 'custom';
-          this.populateLanguageDropdown([], 'custom', this.currentCustomFileName); // Empty list, select custom
+      // 2. Try GitHub Fallback
+      console.log('🔄 Native failed or unavailable, trying GitHub fallback...');
+      const fallbackCaptions = await this.fetchGitHubCaptions(videoId);
+      if (fallbackCaptions && fallbackCaptions.length > 0) {
+        this.captions = fallbackCaptions;
+        this.currentLanguageCode = 'custom';
+        if (this.isPanelValid()) {
+          this.populateLanguageDropdown([], 'custom', this.currentCustomFileName);
           this.renderCaptions();
           this.updateWordCount();
           this.adjustCaptionsContainerHeight();
-          console.log(`✅ Loaded ${fallbackCaptions.length} captions from GitHub fallback`);
-        } else {
-          console.error('❌ No captions found in GitHub fallback either');
-          this.showError('No captions found in GitHub fallback either');
         }
+        console.log(`✅ Loaded ${fallbackCaptions.length} captions from GitHub fallback`);
         return;
       }
 
-      this.availableCaptionTracks = captionTracks; // Store all caption tracks
-
-      let effectiveLanguageCode = targetLanguageCode;
-      let subtitleTrack = captionTracks.find(track => track.languageCode === effectiveLanguageCode);
-
-      // If targetLanguageCode is not found, try current language, then default, then first available
-      if (!subtitleTrack) {
-        effectiveLanguageCode = this.currentLanguageCode;
-        subtitleTrack = captionTracks.find(track => track.languageCode === effectiveLanguageCode);
-      }
-      if (!subtitleTrack && this.defaultLanguageCode !== effectiveLanguageCode) { // Avoid double check if default was already target/current
-        effectiveLanguageCode = this.defaultLanguageCode;
-        subtitleTrack = captionTracks[0]; // Fallback to first available if default not found
-      }
-      if (!subtitleTrack && captionTracks.length > 0) { // Fallback to first available track
-        effectiveLanguageCode = captionTracks[0].languageCode;
-        subtitleTrack = captionTracks[0];
-      }
-
-      if (!subtitleTrack) { // If still no track found, show error
-        console.error(`❌ No suitable subtitle track found.`);
-        this.showError(`No suitable subtitle track found.`);
-        return;
-      }
-      
-      this.currentLanguageCode = effectiveLanguageCode; // Store the language that was actually loaded
-      this.populateLanguageDropdown(captionTracks, this.currentLanguageCode); // Populate dropdown with the actually loaded language selected
-
-      // --- Subtitle XML Fetching (Analogous to subtitle XML fetching in subtitles.py) ---
-      const subtitleUrl = subtitleTrack.baseUrl;
-      const subtitleXml = await this.fetchSubtitleXml(subtitleUrl);
-      if (!subtitleXml) {
-        console.error('❌ No subtitle XML found');
-        this.showError('No subtitle XML found');
-        return;
-      }
-
-      // --- Subtitle XML Parsing (Analogous to subtitle XML parsing in subtitles.py) ---
-      this.captions = this.parseCaptionXML(subtitleXml);
-      this.renderCaptions();
-      this.updateWordCount();
-      this.adjustCaptionsContainerHeight(); // Adjust height after captions are loaded and rendered
-
+      this.showError('No captions found for this video.');
     } catch (error) {
       console.error('❌ Failed to load captions:', error);
       this.showError(`Failed to load captions: ${error.message}`);
@@ -998,6 +980,38 @@ class YouTubeCaptionExtension {
       return await response.json();
     } catch (error) {
       console.error('❌ Error fetching player response:', error);
+    }
+    return null;
+  }
+
+  /**
+   * Attempts to extract the player response from the page source.
+   * This is often more reliable than the API call as it avoids extra network requests and API restrictions.
+   * @returns {object|null} The player response object or null.
+   */
+  async getPlayerResponseFromPage() {
+    console.log('🔍 Scraping player response from page...');
+    try {
+      const scripts = document.querySelectorAll('script');
+      for (const script of scripts) {
+        const text = script.textContent;
+        if (text.includes('ytInitialPlayerResponse')) {
+          // Find the JSON object assigned to ytInitialPlayerResponse. 
+          // Using a more robust regex that handles multi-line content.
+          const match = text.match(/ytInitialPlayerResponse\s*=\s*({.+?})\s*;/s);
+          if (match) {
+            try {
+              const data = JSON.parse(match[1]);
+              console.log('✅ Found player response in page script');
+              return data;
+            } catch (e) {
+              console.warn('⚠️ Found ytInitialPlayerResponse but failed to parse JSON');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('❌ Error scraping player response from page:', e);
     }
     return null;
   }
